@@ -19,26 +19,26 @@
 다음 상황은 발견 즉시 Manager에게 에스컬레이션한다.
 
 ### 2.1 기술적 BLOCK
-| 상황 | 발생 역할 | 에스컬레이션 대상 |
-|------|----------|------------------|
-| project.md에 없는 기술 도입 필요 | Backend, Frontend | Manager |
-| Breaking API change 필요 | Backend | Manager |
+| 상황                                | 발생 역할         | 에스컬레이션 대상   |
+| ----------------------------------- | ----------------- | ------------------- |
+| project.md에 없는 기술 도입 필요    | Backend, Frontend | Manager             |
+| Breaking API change 필요            | Backend           | Manager             |
 | 성능/확장 한계로 아키텍처 변경 필요 | Backend, Frontend | Manager → Architect |
-| 외부 서비스 의존성 추가 필요 | Backend | Manager |
+| 외부 서비스 의존성 추가 필요        | Backend           | Manager             |
 
 ### 2.2 기획적 BLOCK
-| 상황 | 발생 역할 | 에스컬레이션 대상 |
-|------|----------|------------------|
+| 상황                                  | 발생 역할         | 에스컬레이션 대상 |
+| ------------------------------------- | ----------------- | ----------------- |
 | plan.md 요구사항이 모호하여 구현 불가 | Backend, Frontend | Manager → Planner |
-| plan.md에 없는 기능 요청 발생 | 모든 역할 | Manager → Planner |
-| 사용자 흐름에 논리적 모순 발견 | QA | Manager → Planner |
+| plan.md에 없는 기능 요청 발생         | 모든 역할         | Manager → Planner |
+| 사용자 흐름에 논리적 모순 발견        | QA                | Manager → Planner |
 
 ### 2.3 역할 간 충돌
-| 상황 | 발생 역할 | 에스컬레이션 대상 |
-|------|----------|------------------|
-| api.md 해석 불일치 (Backend ↔ Frontend) | Backend, Frontend | Manager |
-| 리뷰 판정에 이의 | Backend, Frontend | Manager |
-| QA 결과에 이의 | Backend, Frontend | Manager |
+| 상황                                    | 발생 역할         | 에스컬레이션 대상 |
+| --------------------------------------- | ----------------- | ----------------- |
+| api.md 해석 불일치 (Backend ↔ Frontend) | Backend, Frontend | Manager           |
+| 리뷰 판정에 이의                        | Backend, Frontend | Manager           |
+| QA 결과에 이의                          | Backend, Frontend | Manager           |
 
 ---
 
@@ -46,18 +46,25 @@
 
 다음 상황은 작업 완료 후 Manager에게 보고한다.
 
-| 상황 | 발생 역할 | 보고 내용 |
-|------|----------|----------|
-| ⚠️ WARN 항목 발생 | Reviewer | review-report.md에 기록 후 보고 |
-| ⚠️ BLOCK 항목 발생 | QA | qa-report.md에 기록 후 보고 |
-| 예상보다 규모가 커진 경우 | Backend, Frontend | 규모 재산정 요청 |
-| 일정 지연 예상 | 모든 역할 | 지연 사유 및 예상 일정 |
+| 상황                      | 발생 역할         | 보고 내용                       |
+| ------------------------- | ----------------- | ------------------------------- |
+| ⚠️ WARN 항목 발생          | Reviewer          | review-report.md에 기록 후 보고 |
+| ⚠️ BLOCK 항목 발생         | QA                | qa-report.md에 기록 후 보고     |
+| 예상보다 규모가 커진 경우 | Backend, Frontend | 규모 재산정 요청                |
+| 일정 지연 예상            | 모든 역할         | 지연 사유 및 예상 일정          |
 
 ---
 
 ## 4. 에스컬레이션 형식
 
 ### 4.1 BLOCK 에스컬레이션 (즉시)
+
+### Closing Action (종료 프로토콜)
+BLOCK 에스컬레이션 메시지를 출력한 후, 반드시 다음 멘트를 남기고 세션을 종료한다:
+
+"⛔ 에스컬레이션이 발생하여 작업을 중단합니다.
+다음 명령어로 Manager를 실행하여 결정을 내려주세요:
+./ai/scripts/ai-role.sh manager [claude|codex|gemini]"
 
 artifacts/decision.md 또는 별도 이슈로 기록:
 
@@ -149,10 +156,10 @@ artifacts/decision.md 또는 별도 이슈로 기록:
 
 ## 7. 에스컬레이션 응답 시간 기대치
 
-| 유형 | 기대 응답 시간 | 미응답 시 |
-|------|---------------|----------|
-| BLOCK (즉시) | 가능한 빨리 | 작업 중단 유지 |
-| REPORT (보고) | 다음 단계 진입 전 | 다음 단계 대기 |
+| 유형            | 기대 응답 시간          | 미응답 시             |
+| --------------- | ----------------------- | --------------------- |
+| BLOCK (즉시)    | 가능한 빨리             | 작업 중단 유지        |
+| REPORT (보고)   | 다음 단계 진입 전       | 다음 단계 대기        |
 | QUESTION (질문) | 작업 진행하며 대기 가능 | 가정하고 진행 후 검증 |
 
 ---

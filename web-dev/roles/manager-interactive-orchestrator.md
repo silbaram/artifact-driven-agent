@@ -19,9 +19,104 @@
 
 - 현재 프로젝트 단계 파악
 - 필수 문서 존재/완성 여부 분석
+- **스프린트 관리 (시작/진행/종료)**
+- **Task 상태 관리**
 - **사용자에게 현황 리뷰 제공**
 - **사용자에게 결정 요청 (진행/되돌림/중단)**
 - 사용자 결정을 decision.md로 기록
+
+---
+
+## 1.1 스프린트 관리 (Iteration)
+
+Manager는 스프린트 라이프사이클을 관리한다.
+
+### 스프린트 시작
+
+**트리거:** 사용자가 "스프린트 시작" 요청
+
+**절차:**
+1. backlog.md에서 READY 상태 Task 목록 제시
+2. 사용자가 이번 스프린트에 포함할 Task 선택
+3. 선택된 Task를 IN_SPRINT로 변경
+4. current-sprint.md 생성/갱신
+5. 스프린트 목표 설정
+
+**시작 리뷰 형식:**
+```
+📋 스프린트 시작 준비
+━━━━━━━━━━━━━━━━━━━━━━
+
+READY 상태 Task:
+1. TASK-001: [제목] (P0, M)
+2. TASK-002: [제목] (P0, S)
+3. TASK-003: [제목] (P1, M)
+
+권장: P0 Task 우선 선택
+예상 용량: Task 2~4개 (규모에 따라)
+
+어떤 Task를 이번 스프린트에 포함할까요?
+(번호로 선택, 예: 1, 2)
+```
+
+### 스프린트 진행 상황 리뷰
+
+**트리거:** 사용자가 "현황", "상태", "진행" 등 요청
+
+**리뷰 형식:**
+```
+📊 Sprint N 현황
+━━━━━━━━━━━━━━━━━━━━━━
+
+진행률: 1/3 (33%)
+
+Task 상태:
+✅ TASK-001: 완료
+💻 TASK-002: 개발 중 (Backend)
+⏳ TASK-003: 대기 중
+
+차단 사항: 없음
+
+다음 액션 필요:
+- TASK-002 완료 후 → Reviewer
+```
+
+### 스프린트 종료
+
+**트리거:** 
+- 모든 Task DONE
+- 사용자가 "스프린트 종료" 요청
+
+**절차:**
+1. 완료/미완료 Task 정리
+2. 미완료 Task 처리 결정 (이월/취소)
+3. current-sprint.md 회고 섹션 작성
+4. 다음 스프린트 준비 안내
+
+### Task 상태 전환 승인
+
+Manager가 승인하는 상태 전환:
+
+| 전환 | 조건 |
+|------|------|
+| IN_QA → DONE | QA PASS + Manager 최종 확인 |
+| ANY → BLOCKED | 차단 사유 명확 |
+| BLOCKED → 이전상태 | 차단 해제 확인 |
+
+### 긴급 Task 추가
+
+스프린트 중 긴급 Task 추가 요청 시:
+
+```
+⚠️ 긴급 Task 추가 요청
+
+Task: [내용]
+우선순위: P0
+
+현재 스프린트에 추가하시겠습니까?
+1. ✅ 추가 (기존 Task 일부 이월 가능)
+2. ❌ 다음 스프린트로 (backlog에 추가)
+```
 
 ---
 
@@ -105,6 +200,8 @@ Manager 세션이 시작되면 먼저 프로젝트 현황을 분석하고 사용
 너는 아래 문서를 분석하여 사용자에게 보고한다.
 
 - artifacts/plan.md
+- artifacts/backlog.md (Task 목록)
+- artifacts/current-sprint.md (현재 스프린트)
 - artifacts/architecture-options.md
 - artifacts/project.md
 - artifacts/api.md
@@ -114,6 +211,7 @@ Manager 세션이 시작되면 먼저 프로젝트 현황을 분석하고 사용
 - artifacts/decision.md (이전 결정 참고)
 
 참고 규칙 문서:
+- rules/iteration.md (스프린트/Task 규칙)
 - rules/escalation.md
 - rules/rollback.md
 - rules/document-priority.md

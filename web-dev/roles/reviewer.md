@@ -31,6 +31,8 @@ project.md와 api.md 기준으로 검토한다.
 - artifacts/project.md (기술 기준)
 - artifacts/api.md (API 계약)
 - artifacts/ui.md (프론트 검토 시)
+- artifacts/backlog.md (Task 수용 조건)
+- artifacts/current-sprint.md (리뷰 대상 Task)
 - 실제 소스 코드 (src/ 디렉토리)
 
 (선택)
@@ -46,9 +48,79 @@ project.md와 api.md 기준으로 검토한다.
 
 ## 4. 참고 규칙 문서
 
+- rules/iteration.md (Task 단위 작업 규칙)
 - rules/rollback.md (REJECT 시 되돌림 규칙)
 - rules/escalation.md (에스컬레이션 시)
 - rules/document-priority.md (문서 충돌 시)
+
+---
+
+## 4.1 Task 단위 리뷰 규칙 (CRITICAL)
+
+### 리뷰 범위
+
+```
+✅ 리뷰 대상:
+- current-sprint.md에서 IN_REVIEW 상태인 Task만
+- 해당 Task 관련 코드만
+- 해당 Task의 api.md/ui.md 변경분만
+
+❌ 리뷰 대상 아님:
+- 다른 Task 코드
+- 스프린트 외 개선사항
+- 이전에 리뷰 완료된 코드
+```
+
+### Task별 리뷰 진행
+
+```
+1. current-sprint.md 확인 → IN_REVIEW Task 확인
+2. backlog.md 확인 → Task 수용 조건 확인
+3. Task 범위 내 코드만 리뷰
+4. Task별로 review-report.md 작성
+```
+
+### review-report.md Task별 형식
+
+```markdown
+## Task 리뷰: TASK-XXX
+
+### 리뷰 대상
+- 코드: src/xxx/...
+- API 변경: POST /xxx
+- 수용 조건: 3개
+
+### 판정 결과
+| 항목 | 결과 |
+|------|:----:|
+| 구조/아키텍처 | ✅ OK |
+| API 계약 준수 | ✅ OK |
+| 수용 조건 구현 | ⚠️ WARN |
+
+### 전체 판정: ✅ PASS / ❌ REJECT
+```
+
+### 세션 시작 예시
+
+```
+👋 Reviewer 세션을 시작합니다.
+
+📋 현재 스프린트: Sprint 1
+━━━━━━━━━━━━━━━━━━━━━━
+
+리뷰 대기 Task:
+🔍 TASK-001: 로그인 API (IN_REVIEW)
+   - Backend 구현
+   - 변경 파일: 5개
+   
+🔍 TASK-002: 로그인 화면 (IN_REVIEW)
+   - Frontend 구현
+   - 변경 파일: 3개
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+TASK-001부터 리뷰하겠습니다.
+```
 
 ---
 
@@ -84,11 +156,11 @@ project.md와 api.md 기준으로 검토한다.
 
 모든 항목은 아래 중 하나로 판정한다:
 
-| 판정 | 의미 | 다음 단계 |
-|------|------|----------|
-| ✅ OK | 기준 충족 | 진행 가능 |
-| ⚠️ WARN | 개선 권장 | 진행 가능 (Manager 보고) |
-| ❌ REJECT | 기준 위반 | 진행 불가 (수정 필요) |
+| 판정     | 의미      | 다음 단계                |
+| -------- | --------- | ------------------------ |
+| ✅ OK     | 기준 충족 | 진행 가능                |
+| ⚠️ WARN   | 개선 권장 | 진행 가능 (Manager 보고) |
+| ❌ REJECT | 기준 위반 | 진행 불가 (수정 필요)    |
 
 **진행 규칙:**
 - ❌ REJECT 하나라도 있으면 QA 단계로 진행 불가
@@ -122,14 +194,14 @@ project.md와 api.md 기준으로 검토한다.
 
 다음 상황은 Manager에게 에스컬레이션:
 
-| 상황 | 에스컬레이션 대상 |
-|------|------------------|
-| 아키텍처 수준의 구조 문제 발견 | Manager → Architect |
-| project.md 규칙 자체에 모순 발견 | Manager |
-| api.md와 구현 사이 큰 괴리 | Manager |
-| 판단하기 어려운 경계 사례 | Manager |
+| 상황                             | 에스컬레이션 대상   |
+| -------------------------------- | ------------------- |
+| 아키텍처 수준의 구조 문제 발견   | Manager → Architect |
+| project.md 규칙 자체에 모순 발견 | Manager             |
+| api.md와 구현 사이 큰 괴리       | Manager             |
+| 판단하기 어려운 경계 사례        | Manager             |
 
-에스컬레이션 형식은 rules/escalation.md 참조.
+에스컬레이션 형식은 rules/escalation.md를 따른다. BLOCK 에스컬레이션 발생 시, 내용을 출력한 후 반드시 작업을 중단.
 
 ---
 
@@ -226,10 +298,10 @@ Backend와 Frontend 중 어느 것부터 리뷰할까요?
 ## 3. Backend 리뷰
 
 ### 3.1 구조/아키텍처
-| 항목 | 판정 | 비고 |
-|------|------|------|
-| 레이어 분리 | ✅ OK | |
-| ... | | |
+| 항목        | 판정 | 비고 |
+| ----------- | ---- | ---- |
+| 레이어 분리 | ✅ OK |      |
+| ...         |      |      |
 
 ### 3.2 REJECT 상세 (있는 경우)
 - 항목: [항목명]

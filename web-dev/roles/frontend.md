@@ -27,6 +27,8 @@ plan.md(기획), project.md(기술 기준), api.md(API 계약)을 기반으로
 - artifacts/plan.md
 - artifacts/project.md
 - artifacts/api.md
+- artifacts/backlog.md (Task 목록)
+- artifacts/current-sprint.md (현재 작업 범위)
 
 (선택)
 - artifacts/decision.md (Manager 지시가 있으면 우선)
@@ -43,9 +45,78 @@ plan.md(기획), project.md(기술 기준), api.md(API 계약)을 기반으로
 
 ## 4. 참고 규칙 문서
 
+- rules/iteration.md (Task 단위 작업 규칙)
 - rules/api-change.md (API 변경 요청 시)
 - rules/escalation.md (에스컬레이션 시)
 - rules/document-priority.md (문서 충돌 시)
+
+---
+
+## 4.1 Task 단위 작업 규칙 (CRITICAL)
+
+### 작업 시작 전 필수 확인
+
+```
+1. current-sprint.md 확인 → 내 Task 확인
+2. backlog.md 확인 → Task 수용 조건 확인
+3. 의존성 확인 → Backend API 완료 여부
+4. api.md 확인 → 해당 Task의 API 정의 여부
+```
+
+### 작업 범위 제한
+
+- ✅ current-sprint.md에 있는 Task만 작업
+- ❌ 스프린트에 없는 화면 구현 금지
+- ❌ "김에" UI 개선 금지
+- ❌ 수용 조건 외 기능 추가 금지
+
+### Task 상태 전환
+
+| 시점 | 상태 변경 | 담당 |
+|------|----------|------|
+| 작업 시작 | IN_SPRINT → IN_DEV | Frontend |
+| 구현 완료 | IN_DEV → IN_REVIEW | Frontend |
+| REJECT 수정 완료 | IN_DEV → IN_REVIEW | Frontend |
+
+### Task별 ui.md 갱신
+
+```markdown
+### [TASK-XXX] 로그인 화면
+
+(Task ID를 명시하여 어떤 Task에서 추가된 화면인지 표시)
+```
+
+### Backend 의존성 처리
+
+```
+Task의 API가 아직 없으면:
+1. Backend 완료 대기 (권장)
+2. Mock 데이터로 진행 시:
+   - 코드에 // TODO: TASK-XXX Mock 주석
+   - current-sprint.md에 "Mock 사용 중" 명시
+```
+
+### 세션 시작 시 Task 확인 예시
+
+```
+👋 Frontend 세션을 시작합니다.
+
+📋 현재 스프린트: Sprint 1
+━━━━━━━━━━━━━━━━━━━━━━
+
+내 Task:
+💻 TASK-002: 로그인 화면 (IN_DEV)
+   - 수용 조건: 4개
+   - 의존 API: POST /auth/login ✅ 완료
+   
+⏳ TASK-004: 메인 대시보드 (대기중)
+   - 의존 API: GET /dashboard ❌ 미완료
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+TASK-002부터 진행하겠습니다.
+API가 준비되어 있으니 바로 구현 가능합니다.
+```
 
 ---
 
@@ -71,12 +142,12 @@ plan.md(기획), project.md(기술 기준), api.md(API 계약)을 기반으로
 ### 5.4 UX 필수 상태
 각 API 연동 화면은 반드시 아래 상태를 가진다:
 
-| 상태 | 설명 | 필수 |
-|------|------|:----:|
-| Loading | 데이터 로딩 중 | ✅ |
-| Empty | 데이터 없음 | ✅ |
-| Error | 에러 발생 (코드별 처리) | ✅ |
-| Success | 정상 표시 | ✅ |
+| 상태    | 설명                    | 필수  |
+| ------- | ----------------------- | :---: |
+| Loading | 데이터 로딩 중          |   ✅   |
+| Empty   | 데이터 없음             |   ✅   |
+| Error   | 에러 발생 (코드별 처리) |   ✅   |
+| Success | 정상 표시               |   ✅   |
 
 ### 5.5 에러 처리 규칙
 - 클라이언트 로직은 error.code 기준으로 분기한다
@@ -118,15 +189,15 @@ plan.md(기획), project.md(기술 기준), api.md(API 계약)을 기반으로
 
 다음 상황은 해당 대상에게 에스컬레이션:
 
-| 상황 | 에스컬레이션 대상 |
-|------|------------------|
-| api.md에 필요한 엔드포인트 누락 | Backend |
+| 상황                                         | 에스컬레이션 대상 |
+| -------------------------------------------- | ----------------- |
+| api.md에 필요한 엔드포인트 누락              | Backend           |
 | api.md 응답 구조가 화면 요구사항과 맞지 않음 | Backend → Manager |
-| project.md에 없는 라이브러리 필요 | Manager |
-| plan.md 화면 흐름이 모호함 | Manager → Planner |
-| Backend와 api.md 해석 충돌 | Manager |
+| project.md에 없는 라이브러리 필요            | Manager           |
+| plan.md 화면 흐름이 모호함                   | Manager → Planner |
+| Backend와 api.md 해석 충돌                   | Manager           |
 
-에스컬레이션 형식은 rules/escalation.md 참조.
+에스컬레이션 형식은 rules/escalation.md를 따른다. BLOCK 에스컬레이션 발생 시, 내용을 출력한 후 반드시 작업을 중단.
 
 ---
 
