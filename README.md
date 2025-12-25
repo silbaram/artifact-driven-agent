@@ -8,7 +8,7 @@
 
 - AI가 감으로 개발하지 못하게 한다
 - 모든 판단을 문서 기준으로 고정한다
-- 기능 단위로 반복 가능한 개발 파이프라인을 만든다
+- **Task 단위로 반복 가능한 애자일 개발 파이프라인**을 만든다
 
 ## 핵심 개념
 
@@ -18,6 +18,7 @@
 - 사용자는 CLI 대화만 한다
 - AI는 역할(Role)에 따라 행동한다
 - 모든 결정과 결과는 문서로 남긴다
+- **Task 단위로 개발하고 완성한다**
 - 다음 단계 진행 여부는 Manager가 판단한다
 
 ---
@@ -34,10 +35,12 @@ project-root/
 │   │   ├── frontend.md           # 프론트엔드 개발자
 │   │   ├── reviewer.md           # 리뷰어
 │   │   ├── qa.md                 # QA
-│   │   └── manager.md            # 관리자
+│   │   └── manager.md            # 관리자 (스프린트 관리)
 │   │
 │   ├── artifacts/                # 산출물 (문서 기준)
 │   │   ├── plan.md               # 기획 결과 (단일 진실)
+│   │   ├── backlog.md            # ⭐ 전체 Task 목록
+│   │   ├── current-sprint.md     # ⭐ 현재 스프린트 작업
 │   │   ├── architecture-options.md  # 아키텍처 제안/협상
 │   │   ├── project.md            # 확정된 개발 기준 (헌법)
 │   │   ├── api.md                # 백엔드 ↔ 프론트 API 계약
@@ -47,6 +50,7 @@ project-root/
 │   │   └── decision.md           # 관리자 판단 기록
 │   │
 │   ├── rules/                    # 공통 규칙 (모든 역할 공유)
+│   │   ├── iteration.md          # ⭐ 스프린트/Task 단위 작업 규칙
 │   │   ├── escalation.md         # 에스컬레이션 규칙
 │   │   ├── rollback.md           # 되돌림 규칙
 │   │   ├── document-priority.md  # 문서 우선순위
@@ -66,13 +70,13 @@ project-root/
 
 | 역할          | 파일         | 담당 업무                                                   | 산출물                 |
 | ------------- | ------------ | ----------------------------------------------------------- | ---------------------- |
-| **Planner**   | planner.md   | 사용자와 CLI 대화로 요구사항 수집. 기술/구현에는 관여 안 함 | plan.md                |
+| **Planner**   | planner.md   | 사용자와 CLI 대화로 요구사항 수집, Task 분해                | plan.md, backlog.md    |
 | **Architect** | architect.md | 규모(S/M/L) 예측, 기술/아키텍처 선택지 제안                 | project.md             |
-| **Backend**   | backend.md   | plan.md, project.md 기준으로 서버 구현                      | api.md, 서버 코드      |
-| **Frontend**  | frontend.md  | plan.md, api.md, project.md 기준으로 UI 구현                | ui.md, 클라이언트 코드 |
-| **Reviewer**  | reviewer.md  | 기술/구조 관점 검토. REJECT 시 QA 진행 불가                 | review-report.md       |
-| **QA**        | qa.md        | "기획대로 되었는지"만 검증                                  | qa-report.md           |
-| **Manager**   | manager.md   | 전체 파이프라인 Gatekeeper. 진행/중단/되돌림 판단           | decision.md            |
+| **Backend**   | backend.md   | Task 단위로 서버 구현                                       | api.md, 서버 코드      |
+| **Frontend**  | frontend.md  | Task 단위로 UI 구현                                         | ui.md, 클라이언트 코드 |
+| **Reviewer**  | reviewer.md  | Task 단위 코드 리뷰. REJECT 시 QA 진행 불가                 | review-report.md       |
+| **QA**        | qa.md        | Task 수용 조건 기준으로 검증                                | qa-report.md           |
+| **Manager**   | manager.md   | 스프린트 관리, 진행/중단/되돌림 판단                        | decision.md            |
 
 ---
 
@@ -82,6 +86,7 @@ project-root/
 
 | 파일                 | 설명                                        | 주요 사용자           |
 | -------------------- | ------------------------------------------- | --------------------- |
+| **iteration.md**     | ⭐ 스프린트/Task 단위 작업 규칙              | 모든 역할             |
 | escalation.md        | 언제, 어떻게 Manager에게 에스컬레이션하는지 | 모든 역할             |
 | rollback.md          | REJECT/FAIL 시 누가 무엇을 수정하는지       | Manager, Reviewer, QA |
 | document-priority.md | 문서 간 충돌 시 어떤 문서가 우선인지        | 모든 역할             |
@@ -95,52 +100,96 @@ project-root/
 1. decision.md        (Manager 판단) ─────── 최우선
 2. project.md         (Frozen 상태) ──────── 기술 기준
 3. plan.md            (기획 기준) ─────────── 요구사항 기준
-4. api.md             (API 계약) ──────────── 구현 계약
-5. architecture-options.md ─────────────────── 참고용
-6. ui.md / review-report.md / qa-report.md ── 결과물
+4. backlog.md         (Task 정의) ─────────── Task 수용 조건
+5. api.md             (API 계약) ──────────── 구현 계약
+6. current-sprint.md  (스프린트 범위) ─────── 현재 작업
+7. architecture-options.md ─────────────────── 참고용
+8. ui.md / review-report.md / qa-report.md ── 결과물
 ```
 
-### 에스컬레이션 규칙 요약
+---
 
-**즉시 에스컬레이션 (BLOCK)**
-- project.md에 없는 기술 도입 필요
-- Breaking API change 필요
-- plan.md 요구사항이 모호하여 진행 불가
-- 역할 간 충돌 (해석 불일치)
+## 애자일 워크플로우 (Task 단위 개발)
 
-**작업 후 보고**
-- ⚠️ WARN / BLOCK 항목 발생
-- 예상보다 규모가 커진 경우
+이 구조는 **Task 하나씩 완성하며 반복**한다.
 
-### 되돌림 규칙 요약
+### 워크플로우 개요
 
-**Reviewer REJECT 시**
+```
+❌ Waterfall (잘못된 방식)
+전체 기획 → 전체 설계 → 전체 개발 → 전체 테스트
 
-| REJECT 유형   | 되돌림 대상      | Manager 개입 |
-| ------------- | ---------------- | ------------ |
-| 구현 문제     | Backend/Frontend | 불필요       |
-| API 계약 문제 | Backend          | 불필요       |
-| 아키텍처 문제 | Architect        | 필요         |
+✅ Iterative (올바른 방식)
+Sprint 1: Task A 완성 → Task B 완성
+Sprint 2: Task C 완성 → Task D 완성
+...
+```
 
-**QA FAIL 시**
+### 주요 문서
 
-| FAIL 원인 | 되돌림 대상      |
-| --------- | ---------------- |
-| 구현 누락 | Backend/Frontend |
-| 기획 모호 | Planner          |
-| 기술 불가 | Architect        |
+| 문서 | 역할 | 관리자 |
+|------|------|--------|
+| backlog.md | 전체 Task 목록 및 상태 | Planner, Manager |
+| current-sprint.md | 현재 스프린트 작업 범위 | Manager |
 
-### API 변경 규칙 요약
+### 스프린트 라이프사이클
 
-**Non-Breaking (하위 호환)** → Frontend 통보 후 진행
-- 새 엔드포인트 추가
-- 응답에 optional 필드 추가
-- 새 에러 코드 추가
+```
+1. 스프린트 계획 (Manager)
+   - backlog에서 READY Task 선택
+   - current-sprint.md 갱신
+   - 스프린트 목표 설정
 
-**Breaking (하위 비호환)** → **Manager 승인 필수**
-- 엔드포인트 삭제/변경
-- 필수 필드 추가
-- 필드 타입 변경
+2. 스프린트 진행
+   Task: IN_SPRINT → IN_DEV → IN_REVIEW → IN_QA → DONE
+
+3. 스프린트 종료 (Manager)
+   - 완료/미완료 Task 정리
+   - 회고 작성
+   - 다음 스프린트 준비
+```
+
+### Task 상태 흐름
+
+```
+📋 BACKLOG (정의됨)
+    ↓ Planner: 요구사항 명확화
+✅ READY (스프린트 투입 가능)
+    ↓ Manager: 스프린트 배정
+🏃 IN_SPRINT (스프린트에 포함)
+    ↓ 개발자: 작업 시작
+💻 IN_DEV (개발 중)
+    ↓ 개발자: 구현 완료
+🔍 IN_REVIEW (리뷰 중)
+    ↓ Reviewer: PASS
+🧪 IN_QA (QA 중)
+    ↓ QA: PASS + Manager 승인
+✅ DONE (완료)
+```
+
+### 역할별 스프린트 작업
+
+| 역할 | 스프린트 중 작업 |
+|------|-----------------|
+| Planner | 신규 요구사항 → backlog에 추가 (다음 스프린트) |
+| Backend/Frontend | current-sprint의 Task만 구현 |
+| Reviewer | IN_REVIEW Task만 리뷰 (Task 범위 내) |
+| QA | IN_QA Task의 수용 조건만 검증 |
+| Manager | 스프린트 관리, Task 상태 승인 |
+
+### 중요 규칙
+
+**작업 범위 제한:**
+- ✅ current-sprint.md에 있는 Task만 작업
+- ❌ 스프린트 외 기능 구현 금지
+- ❌ "김에" 리팩토링 금지
+- ❌ 수용 조건 외 기능 추가 금지
+
+**신규 요구사항:**
+- 스프린트 중 새 요구사항 → backlog에 BACKLOG 상태로 추가
+- 긴급(P0)인 경우만 Manager 승인 후 현재 스프린트에 추가
+
+> 상세 규칙은 `rules/iteration.md` 참조
 
 ---
 
@@ -150,17 +199,21 @@ project-root/
 사용자
   ↓ (CLI 대화)
 Planner
-  ↓ plan.md
+  ↓ plan.md → backlog.md (Task 분해)
 Architect
   ↓ architecture-options.md → project.md (Freeze)
-Backend / Frontend
-  ↓ api.md / ui.md
-Reviewer
-  ↓ review-report.md
-QA
-  ↓ qa-report.md
 Manager
-  ↓ decision.md
+  ↓ 스프린트 시작 → current-sprint.md
+Backend / Frontend
+  ↓ Task 단위 구현 → api.md / ui.md
+Reviewer
+  ↓ Task 단위 리뷰 → review-report.md
+QA
+  ↓ Task 수용 조건 검증 → qa-report.md
+Manager
+  ↓ Task 완료 승인 → decision.md
+  ↓
+(다음 Task 또는 스프린트 종료)
 ```
 
 ---
@@ -176,17 +229,17 @@ Manager
 **Linux/Mac:**
 ```bash
 # 사용법
-.ai/scripts/ai-role.sh <role> <ai-tool>
+./ai/scripts/ai-role.sh <role> <ai-tool>
 
 # 예시
-.ai/scripts/ai-role.sh planner claude      # Planner 역할로 Claude Code 시작
-.ai/scripts/ai-role.sh backend codex       # Backend 역할로 Codex 시작
-.ai/scripts/ai-role.sh architect gemini    # Architect 역할로 Gemini 시작
+./ai/scripts/ai-role.sh planner claude      # Planner 역할로 Claude Code 시작
+./ai/scripts/ai-role.sh backend codex       # Backend 역할로 Codex 시작
+./ai/scripts/ai-role.sh architect gemini    # Architect 역할로 Gemini 시작
 
 # 유틸리티
-.ai/scripts/ai-role.sh planner --set-only  # 역할만 설정 (AI 실행 안 함)
-.ai/scripts/ai-role.sh --list              # 사용 가능한 역할/도구 목록
-.ai/scripts/ai-role.sh --current           # 현재 설정된 역할 확인
+./ai/scripts/ai-role.sh planner --set-only  # 역할만 설정 (AI 실행 안 함)
+./ai/scripts/ai-role.sh --list              # 사용 가능한 역할/도구 목록
+./ai/scripts/ai-role.sh --current           # 현재 설정된 역할 확인
 ```
 
 **Windows (PowerShell, 권장):**
@@ -280,18 +333,20 @@ gemini -p (Get-Content ai/roles/planner.md -Raw)
 ### 1) 기획 세션 (사용자 ↔ Planner)
 
 ```bash
-.ai/scripts/ai-role.sh planner claude
+./ai/scripts/ai-role.sh planner claude
 ```
 
-**목표:** 대화로 요구사항 확정 → `plan.md` 완성
+**목표:** 대화로 요구사항 확정 → `plan.md` 완성 → `backlog.md` Task 분해
 
 **세션 동작:**
 - Planner가 질문 1~3개씩
 - 사용자 답변
 - Planner가 plan.md 갱신
-- "미확정"을 최대한 줄임
+- plan.md 확정 후 backlog.md에 Task 분해
 
-**종료 조건:** plan.md에 핵심 기능 목록, 사용자 흐름, 미확정 항목이 정리됨
+**종료 조건:** 
+- plan.md에 핵심 기능 목록, 사용자 흐름, 미확정 항목이 정리됨
+- backlog.md에 Task가 분해됨
 
 > ⚠️ 기획 단계에서 기술 얘기 나오면 Planner가 **거절**해야 정상
 
@@ -300,7 +355,7 @@ gemini -p (Get-Content ai/roles/planner.md -Raw)
 ### 2) 아키텍처 세션 (사용자 ↔ Architect)
 
 ```bash
-.ai/scripts/ai-role.sh architect claude
+./ai/scripts/ai-role.sh architect claude
 ```
 
 **목표:** 규모 예측, 스택/인프라 선택 → `project.md` 확정(Frozen)
@@ -318,54 +373,129 @@ gemini -p (Get-Content ai/roles/planner.md -Raw)
 
 ---
 
-### 3) 개발 세션 (Backend / Frontend)
+### 3) 스프린트 시작 (Manager)
 
 ```bash
-.ai/scripts/ai-role.sh backend codex
-.ai/scripts/ai-role.sh frontend codex
+./ai/scripts/ai-role.sh manager claude
 ```
 
-**백엔드 작업 순서:**
-1. `api.md` 먼저 작성/갱신 (계약서)
-2. 계약서 기준으로 구현
-3. 테스트/실행
+**목표:** 스프린트 계획 → `current-sprint.md` 생성
+
+**세션 동작:**
+- Manager가 backlog.md에서 READY Task 목록 제시
+- 사용자가 이번 스프린트에 포함할 Task 선택
+- current-sprint.md 갱신
+- 스프린트 목표 설정
 
 **시작 지시 예시:**
-> "plan.md와 project.md 기준으로 api.md부터 만들고, 그 다음 구현 진행해줘"
+> "스프린트 시작해줘"
 
 ---
 
-### 4) 리뷰 → QA → 승인
+### 4) 개발 세션 (Backend / Frontend)
 
 ```bash
-.ai/scripts/ai-role.sh reviewer claude   # review-report.md
-.ai/scripts/ai-role.sh qa claude         # qa-report.md
-.ai/scripts/ai-role.sh manager claude    # decision.md
+./ai/scripts/ai-role.sh backend codex
+./ai/scripts/ai-role.sh frontend codex
 ```
 
-**되돌림 발생 시:**
-- `ai/rules/rollback.md` 규칙에 따라 처리
-- REJECT/FAIL 유형에 따라 되돌림 대상 결정
-- 수정 후 영향받는 단계부터 재검증
+**Task 단위 작업:**
+1. current-sprint.md에서 내 Task 확인
+2. backlog.md에서 수용 조건 확인
+3. Task 구현
+4. api.md / ui.md 갱신
+5. Task 완료 → IN_REVIEW 상태로 변경
+
+**시작 지시 예시:**
+> "현재 스프린트의 내 Task부터 시작해줘"
 
 ---
 
-## 기능 단위 반복 (Iteration)
+### 5) 리뷰 → QA → 승인
 
-이 구조는 **기능 하나씩 완성하며 반복**한다.
+```bash
+./ai/scripts/ai-role.sh reviewer claude   # Task 단위 리뷰
+./ai/scripts/ai-role.sh qa claude         # Task 수용 조건 검증
+./ai/scripts/ai-role.sh manager claude    # Task 완료 승인
+```
 
-### 기능 추가 시 동작 방식
-1. 사용자: 새 기능 요구 (CLI)
-2. Planner: `plan.md`에 기능 추가
-3. Manager: 아키텍처 재검토 필요 여부 판단
-4. Backend / Frontend: `api.md`, `ui.md` 증분 업데이트
-5. Reviewer → QA → Manager 순서로 검증
-6. `decision.md`에 "Feature 완료" 기록
+**Task 단위로 진행:**
+- Reviewer: 해당 Task 관련 코드만 리뷰
+- QA: 해당 Task 수용 조건만 검증
+- Manager: Task DONE 승인
 
-### 규칙
-- `project.md`는 대부분 유지
-- Breaking change는 **Manager 승인 없이는 금지** (→ `ai/rules/api-change.md`)
-- 문서 없는 진행은 불가
+**되돌림 발생 시:**
+- REJECT/FAIL → 해당 Task가 IN_DEV로 복귀
+- 수정 후 다시 IN_REVIEW → IN_QA 진행
+
+---
+
+### 6) 스프린트 종료 (Manager)
+
+```bash
+./ai/scripts/ai-role.sh manager claude
+```
+
+**종료 조건:**
+- 모든 Task DONE, 또는
+- 스프린트 종료일 도달
+
+**세션 동작:**
+- 완료/미완료 Task 정리
+- 미완료 Task 처리 결정 (이월/취소)
+- current-sprint.md 회고 작성
+- 다음 스프린트 준비
+
+**종료 지시 예시:**
+> "스프린트 종료해줘"
+
+---
+
+## 에스컬레이션 규칙 요약
+
+**즉시 에스컬레이션 (BLOCK)**
+- project.md에 없는 기술 도입 필요
+- Breaking API change 필요
+- plan.md 요구사항이 모호하여 진행 불가
+- 역할 간 충돌 (해석 불일치)
+
+**작업 후 보고**
+- ⚠️ WARN / BLOCK 항목 발생
+- 예상보다 규모가 커진 경우
+
+---
+
+## 되돌림 규칙 요약
+
+**Reviewer REJECT 시**
+
+| REJECT 유형   | 되돌림 대상      | Manager 개입 |
+| ------------- | ---------------- | ------------ |
+| 구현 문제     | Backend/Frontend | 불필요       |
+| API 계약 문제 | Backend          | 불필요       |
+| 아키텍처 문제 | Architect        | 필요         |
+
+**QA FAIL 시**
+
+| FAIL 원인 | 되돌림 대상      |
+| --------- | ---------------- |
+| 구현 누락 | Backend/Frontend |
+| 기획 모호 | Planner          |
+| 기술 불가 | Architect        |
+
+---
+
+## API 변경 규칙 요약
+
+**Non-Breaking (하위 호환)** → Frontend 통보 후 진행
+- 새 엔드포인트 추가
+- 응답에 optional 필드 추가
+- 새 에러 코드 추가
+
+**Breaking (하위 비호환)** → **Manager 승인 필수**
+- 엔드포인트 삭제/변경
+- 필수 필드 추가
+- 필드 타입 변경
 
 ---
 
@@ -376,11 +506,14 @@ gemini -p (Get-Content ai/roles/planner.md -Raw)
 - ❌ 기준 없는 판단
 - ❌ 감으로 추가된 기술
 - ❌ "MVP니까 괜찮음"
+- ❌ 스프린트 외 작업
+- ❌ 수용 조건 외 기능 추가
 
 **필수:**
 - ✅ 문서 기준 판단
 - ✅ 역할별 책임 분리
-- ✅ 기능 단위 반복 개발
+- ✅ **Task 단위 반복 개발**
+- ✅ 스프린트 범위 준수
 
 ---
 
@@ -392,20 +525,21 @@ gemini -p (Get-Content ai/roles/planner.md -Raw)
 ### 역할 간 문서 의존성
 각 역할은 이전 단계의 문서가 있어야 정상 동작한다.
 
-| 역할      | 필요 문서                   |
-| --------- | --------------------------- |
-| Architect | plan.md                     |
-| Backend   | plan.md, project.md         |
-| Frontend  | plan.md, project.md, api.md |
-| Reviewer  | plan.md, project.md         |
-| QA        | plan.md, project.md         |
-| Manager   | plan.md                     |
+| 역할      | 필요 문서                                      |
+| --------- | ---------------------------------------------- |
+| Architect | plan.md                                        |
+| Backend   | plan.md, project.md, backlog.md, current-sprint.md |
+| Frontend  | plan.md, project.md, api.md, backlog.md, current-sprint.md |
+| Reviewer  | plan.md, project.md, backlog.md, current-sprint.md |
+| QA        | plan.md, project.md, backlog.md, current-sprint.md |
+| Manager   | plan.md, backlog.md                            |
 
 ### 역할별 금지사항 (CRITICAL)
 각 역할은 자신의 범위를 넘어서는 수정이 금지된다:
 - Planner: 기술 스택 선택 금지
 - Architect: 요구사항 변경 금지
-- Backend/Frontend: project.md에 없는 기술 도입 금지
+- Backend/Frontend: project.md에 없는 기술 도입 금지, 스프린트 외 작업 금지
+- Reviewer/QA: 스프린트 외 코드/기능 검토 금지
 
 ### 문서 충돌 시
 `ai/rules/document-priority.md` 규칙에 따라 상위 문서 우선으로 처리한다.
@@ -450,7 +584,18 @@ ls ai/artifacts/
 
 ### 3단계: 순서대로 진행
 ```
-Planner → Architect → Backend/Frontend → Reviewer → QA → Manager
+Planner (plan.md + backlog.md)
+    ↓
+Architect (project.md)
+    ↓
+Manager (스프린트 시작)
+    ↓
+[Sprint Loop]
+Backend/Frontend → Reviewer → QA → Manager (Task 완료)
+    ↓
+Manager (스프린트 종료)
+    ↓
+(다음 스프린트 또는 프로젝트 완료)
 ```
 
 ⚠️ **단계 건너뛰기 금지**
@@ -463,6 +608,10 @@ Planner → Architect → Backend/Frontend → Reviewer → QA → Manager
 - 대화 초반에 역할 파일을 다시 읽게 지시
 - "ai/roles/[역할].md 파일을 읽고 그 역할대로 행동해줘"
 
+### AI가 스프린트 외 작업을 하려 할 때
+- "current-sprint.md에 있는 Task만 작업해줘"
+- "지금은 TASK-XXX만 진행해줘"
+
 ### 문서 간 충돌 발생 시
 - `ai/rules/document-priority.md` 참조
 - 상위 문서 우선, 하위 문서 수정
@@ -474,3 +623,7 @@ Planner → Architect → Backend/Frontend → Reviewer → QA → Manager
 ### Breaking Change가 필요할 때
 - `ai/rules/api-change.md` 절차 준수
 - Manager 승인 없이 진행 금지
+
+### Task 수용 조건이 모호할 때
+- Planner에게 명확화 요청
+- backlog.md 업데이트 후 진행
