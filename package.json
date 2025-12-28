@@ -1,0 +1,49 @@
+{
+  "name": "@silbaram/artifact-driven-agent",
+  "version": "0.1.0",
+  "description": "CLI 기반 멀티 AI 에이전트 개발 프레임워크 - AI가 규칙을 어기지 못하게 하는 문서 기반 개발",
+  "type": "module",
+  "bin": {
+    "ada": "./bin/cli.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "core",
+    "templates",
+    "docs",
+    "examples",
+    "ai-dev-team"
+  ],
+  "scripts": {
+    "test": "node --test src/**/*.test.js",
+    "lint": "echo 'No linter configured'"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "cli",
+    "development",
+    "framework",
+    "artifact",
+    "multi-agent",
+    "claude",
+    "codex",
+    "automation"
+  ],
+  "author": "silbaram <silbaram79@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/silbaram/artifact-driven-agent"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "fs-extra": "^11.2.0",
+    "inquirer": "^9.2.15"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

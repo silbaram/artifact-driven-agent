@@ -30,8 +30,9 @@ Thumbs.db
 *.swp
 *.swo
 
-# Node (예제 프로젝트용)
+# Node (npm 패키지)
 node_modules/
+package-lock.json
 npm-debug.log
 
 # Python (예제 프로젝트용)
