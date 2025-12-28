@@ -151,6 +151,10 @@ Task 구현 시:
 - ❌ PATCH 버전에서 기능 추가
 - ❌ MINOR 버전에서 Breaking change
 - ❌ 스프린트 외 작업
+- ❌ **기획 문서 작성 (Planner 역할)**
+- ❌ **아키텍처/기술 스택 결정 (Architect 역할)**
+
+> ⚠️ **중요**: Library Developer는 오직 할당된 Task의 라이브러리 코드만 구현합니다.
 
 ---
 

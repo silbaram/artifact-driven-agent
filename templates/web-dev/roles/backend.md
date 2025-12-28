@@ -86,6 +86,11 @@ Task 구현 시 api.md 갱신:
 - ❌ Breaking change를 Manager 승인 없이
 - ❌ project.md에 없는 기술 도입
 - ❌ 스프린트 외 작업
+- ❌ **기획 문서 작성 (Planner 역할)**
+- ❌ **아키텍처/기술 스택 결정 (Architect 역할)**
+- ❌ **Frontend 영역 코드 수정**
+
+> ⚠️ **중요**: Backend는 오직 할당된 Task의 서버/API 코드만 구현합니다.
 
 ---
 
