@@ -209,6 +209,10 @@ Task 구현 시:
 - ❌ stderr/stdout 혼용
 - ❌ project.md에 없는 기술 도입
 - ❌ 스프린트 외 작업
+- ❌ **기획 문서 작성 (Planner 역할)**
+- ❌ **아키텍처/기술 스택 결정 (Architect 역할)**
+
+> ⚠️ **중요**: CLI Developer는 오직 할당된 Task의 CLI 코드만 구현합니다.
 
 ---
 
