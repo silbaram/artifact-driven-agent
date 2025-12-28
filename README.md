@@ -89,45 +89,57 @@ artifact-driven-agent/
 
 ## 🚀 빠른 시작
 
+### 설치 방법
+
+#### 방법 1: npm (권장)
+
+```bash
+# 전역 설치
+npm install -g @silbaram/artifact-driven-agent
+
+# 또는 npx로 바로 실행
+npx @silbaram/artifact-driven-agent setup web
+```
+
+#### 방법 2: 직접 다운로드
+
+```bash
+# 저장소 클론
+git clone https://github.com/silbaram/artifact-driven-agent.git
+cd artifact-driven-agent
+npm install
+npm link  # 전역 명령어 등록
+```
+
 ### 1단계: 개발 스타일 세팅
 
 ```bash
-# Linux/Mac
-chmod +x scripts/ai-role.sh
-./scripts/ai-role.sh setup
+# npm 설치 후
+ada setup web
 
-# Windows PowerShell
-.\scripts\ai-role.ps1 setup
-
-# Windows CMD
-scripts\ai-role.bat setup
+# 또는 직접 지정
+ada setup web      # 웹 서비스 개발 (web-dev 별칭)
+ada setup library  # 라이브러리 개발 (lib 별칭)
+ada setup game     # 게임 개발
+ada setup cli      # CLI 도구 개발
 ```
 
 > ⚠️ **Windows PowerShell 오류 시**
 > ```powershell
 > # 현재 세션에서만 실행 허용
 > Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-> .\scripts\ai-role.ps1 setup
 > ```
-
-대화형으로 템플릿을 선택하거나 직접 지정:
-
-```bash
-./scripts/ai-role.sh setup web      # 웹 서비스 개발
-./scripts/ai-role.sh setup library  # 라이브러리 개발
-./scripts/ai-role.sh setup game     # 게임 개발
-./scripts/ai-role.sh setup cli      # CLI 도구 개발
-```
 
 ### 2단계: AI 에이전트 실행
 
 ```bash
 # 대화형으로 역할/도구 선택
-./scripts/ai-role.sh
+ada
 
 # 또는 직접 지정
-./scripts/ai-role.sh backend claude
-./scripts/ai-role.sh planner codex
+ada backend claude
+ada planner codex
+ada run frontend gemini
 ```
 
 ---
@@ -136,49 +148,49 @@ scripts\ai-role.bat setup
 
 ### 세팅 명령어
 
-| 명령어 | 설명 |
-|--------|------|
-| `setup` | 대화형으로 템플릿 선택 후 세팅 |
-| `setup <template>` | 특정 템플릿으로 세팅 |
-| `status` | 현재 세팅 상태 확인 |
-| `reset` | ai-dev-team 초기화 |
+| 명령어             | 설명                           |
+| ------------------ | ------------------------------ |
+| `setup`            | 대화형으로 템플릿 선택 후 세팅 |
+| `setup <template>` | 특정 템플릿으로 세팅           |
+| `status`           | 현재 세팅 상태 확인            |
+| `reset`            | ai-dev-team 초기화             |
 
 ### 실행 명령어
 
-| 명령어 | 설명 |
-|--------|------|
-| (인자 없음) | 대화형으로 역할/도구 선택 후 실행 |
-| `<role> <tool>` | 직접 역할과 도구 지정해서 실행 |
+| 명령어          | 설명                              |
+| --------------- | --------------------------------- |
+| (인자 없음)     | 대화형으로 역할/도구 선택 후 실행 |
+| `<role> <tool>` | 직접 역할과 도구 지정해서 실행    |
 
 ### 검증/관리 명령어
 
-| 명령어 | 설명 |
-|--------|------|
-| `validate` | 산출물 문서 검증 (plan.md, project.md 등) |
-| `sessions` | AI 실행 세션 목록 |
-| `logs` | 가장 최근 세션 로그 확인 |
-| `logs <session-id>` | 특정 세션 로그 확인 |
+| 명령어              | 설명                                      |
+| ------------------- | ----------------------------------------- |
+| `validate`          | 산출물 문서 검증 (plan.md, project.md 등) |
+| `sessions`          | AI 실행 세션 목록                         |
+| `logs`              | 가장 최근 세션 로그 확인                  |
+| `logs <session-id>` | 특정 세션 로그 확인                       |
 
 ### 예시
 
 ```bash
 # 웹 개발로 세팅
-./scripts/ai-role.sh setup web
+ada setup web
 
 # 현재 상태 확인
-./scripts/ai-role.sh status
+ada status
 
 # 문서 검증 (스프린트 시작 전 권장)
-./scripts/ai-role.sh validate
+ada validate
 
 # 백엔드 개발자로 Claude 실행
-./scripts/ai-role.sh backend claude
+ada backend claude
 
 # 세션 목록 확인
-./scripts/ai-role.sh sessions
+ada sessions
 
 # 최근 로그 확인
-./scripts/ai-role.sh logs
+ada logs
 ```
 
 ---
@@ -187,25 +199,25 @@ scripts\ai-role.bat setup
 
 ### Core 역할 (모든 템플릿에서 사용)
 
-| 역할 | 파일 | 책임 |
-|------|------|------|
-| Planner | planner.md | 요구사항 수집, Task 분해 |
+| 역할      | 파일         | 책임                      |
+| --------- | ------------ | ------------------------- |
+| Planner   | planner.md   | 요구사항 수집, Task 분해  |
 | Architect | architect.md | 규모 예측, 기술 스택 결정 |
-| Developer | developer.md | 코드 구현 (범용) |
-| Reviewer | reviewer.md | 코드 리뷰 |
-| QA | qa.md | 수용 조건 검증 |
-| Manager | manager.md | 스프린트 관리, 승인 |
+| Developer | developer.md | 코드 구현 (범용)          |
+| Reviewer  | reviewer.md  | 코드 리뷰                 |
+| QA        | qa.md        | 수용 조건 검증            |
+| Manager   | manager.md   | 스프린트 관리, 승인       |
 
 ### 템플릿별 특화 역할
 
-| 템플릿 | 역할 | 책임 |
-|--------|------|------|
-| web | backend | API 설계, 서버 구현 |
-| web | frontend | UI 구현, API 연동 |
+| 템플릿  | 역할              | 책임                     |
+| ------- | ----------------- | ------------------------ |
+| web     | backend           | API 설계, 서버 구현      |
+| web     | frontend          | UI 구현, API 연동        |
 | library | library-developer | 공개 API 설계, 버전 관리 |
-| game | game-logic | 게임 시스템 설계 |
-| game | rendering | 화면/이펙트 구현 |
-| cli | cli-developer | 명령어 설계, 출력 형식 |
+| game    | game-logic        | 게임 시스템 설계         |
+| game    | rendering         | 화면/이펙트 구현         |
+| cli     | cli-developer     | 명령어 설계, 출력 형식   |
 
 ---
 
@@ -213,31 +225,31 @@ scripts\ai-role.bat setup
 
 ### Core 산출물
 
-| 문서 | 용도 | 관리자 |
-|------|------|--------|
-| plan.md | 기획서 | Planner |
-| project.md | 기술 기준 (Frozen) | Architect |
-| backlog.md | Task 목록 | Planner, Manager |
-| current-sprint.md | 현재 스프린트 | Manager |
-| decision.md | 판단 기록 | Manager |
-| architecture-options.md | 아키텍처 협상 | Architect |
-| review-report.md | 리뷰 결과 | Reviewer |
-| qa-report.md | QA 결과 | QA |
+| 문서                    | 용도               | 관리자           |
+| ----------------------- | ------------------ | ---------------- |
+| plan.md                 | 기획서             | Planner          |
+| project.md              | 기술 기준 (Frozen) | Architect        |
+| backlog.md              | Task 목록          | Planner, Manager |
+| current-sprint.md       | 현재 스프린트      | Manager          |
+| decision.md             | 판단 기록          | Manager          |
+| architecture-options.md | 아키텍처 협상      | Architect        |
+| review-report.md        | 리뷰 결과          | Reviewer         |
+| qa-report.md            | QA 결과            | QA               |
 
 ### 템플릿별 산출물
 
-| 템플릿 | 문서 | 용도 |
-|--------|------|------|
-| web | api.md | REST API 계약 |
-| web | ui.md | 화면 설계 |
-| library | public-api.md | 공개 인터페이스 |
-| library | examples.md | 사용 예제 |
-| library | changelog.md | 버전 변경 이력 |
-| game | game-systems.md | 게임 시스템 |
-| game | assets.md | 에셋 목록 |
-| game | hud.md | HUD/UI 설계 |
-| cli | commands.md | 명령어 정의 |
-| cli | output-format.md | 출력 형식 |
+| 템플릿  | 문서             | 용도            |
+| ------- | ---------------- | --------------- |
+| web     | api.md           | REST API 계약   |
+| web     | ui.md            | 화면 설계       |
+| library | public-api.md    | 공개 인터페이스 |
+| library | examples.md      | 사용 예제       |
+| library | changelog.md     | 버전 변경 이력  |
+| game    | game-systems.md  | 게임 시스템     |
+| game    | assets.md        | 에셋 목록       |
+| game    | hud.md           | HUD/UI 설계     |
+| cli     | commands.md      | 명령어 정의     |
+| cli     | output-format.md | 출력 형식       |
 
 ---
 
@@ -245,22 +257,22 @@ scripts\ai-role.bat setup
 
 ### Core 규칙
 
-| 규칙 | 용도 |
-|------|------|
-| iteration.md | 스프린트/Task 단위 작업 |
-| escalation.md | Manager 보고 기준 |
-| rollback.md | REJECT/FAIL 시 되돌림 |
-| document-priority.md | 문서 충돌 해결 |
-| rfc.md | Frozen 문서 변경 절차 |
+| 규칙                 | 용도                    |
+| -------------------- | ----------------------- |
+| iteration.md         | 스프린트/Task 단위 작업 |
+| escalation.md        | Manager 보고 기준       |
+| rollback.md          | REJECT/FAIL 시 되돌림   |
+| document-priority.md | 문서 충돌 해결          |
+| rfc.md               | Frozen 문서 변경 절차   |
 
 ### 템플릿별 규칙
 
-| 템플릿 | 규칙 | 용도 |
-|--------|------|------|
-| web | api-change.md | API 변경 절차 |
-| library | versioning.md | Semantic Versioning |
-| game | system-change.md | 게임 시스템 변경 |
-| cli | command-change.md | 명령어 변경 절차 |
+| 템플릿  | 규칙              | 용도                |
+| ------- | ----------------- | ------------------- |
+| web     | api-change.md     | API 변경 절차       |
+| library | versioning.md     | Semantic Versioning |
+| game    | system-change.md  | 게임 시스템 변경    |
+| cli     | command-change.md | 명령어 변경 절차    |
 
 ---
 
@@ -336,7 +348,7 @@ ai-dev-team/artifacts/features/
 스프린트 시작 전 문서 완성도를 자동 검사합니다.
 
 ```bash
-./scripts/ai-role.sh validate
+ada validate
 ```
 
 ### 검사 항목
@@ -354,11 +366,11 @@ AI 에이전트 실행마다 세션 ID가 부여되어 추적이 가능합니다
 
 ```bash
 # 세션 목록
-./scripts/ai-role.sh sessions
+ada sessions
 
 # 로그 확인
-./scripts/ai-role.sh logs
-./scripts/ai-role.sh logs 20241227-143022-a1b2c3d4
+ada logs
+ada logs 20241227-143022-a1b2c3d4
 ```
 
 ### 세션 ID 형식
@@ -387,13 +399,13 @@ YYYYMMDD-HHMMSS-<random>
 
 ## 📊 템플릿 비교
 
-| 항목 | web | library | game | cli |
-|------|:---:|:-------:|:----:|:---:|
-| 개발자 역할 | 2개 | 1개 | 2개 | 1개 |
-| API 계약 | ✅ | ✅ | - | ✅ |
-| 버전 관리 | - | ✅ | - | ✅ |
-| 에셋 관리 | - | - | ✅ | - |
-| UI/UX 문서 | ✅ | - | ✅ | ✅ |
+| 항목        |  web  | library | game  |  cli  |
+| ----------- | :---: | :-----: | :---: | :---: |
+| 개발자 역할 |  2개  |   1개   |  2개  |  1개  |
+| API 계약    |   ✅   |    ✅    |   -   |   ✅   |
+| 버전 관리   |   -   |    ✅    |   -   |   ✅   |
+| 에셋 관리   |   -   |    -    |   ✅   |   -   |
+| UI/UX 문서  |   ✅   |    -    |   ✅   |   ✅   |
 
 ---
 
