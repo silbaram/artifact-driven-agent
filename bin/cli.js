@@ -47,6 +47,7 @@ program
 program
   .command('sessions')
   .description('AI 실행 세션 목록')
+  .option('-w, --watch', '실시간 모니터링 모드')
   .action(sessions);
 
 // Logs command

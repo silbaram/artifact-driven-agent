@@ -11,8 +11,25 @@ CLI 기반 멀티 AI 에이전트를 사용해 기획 → 설계 → 개발 → 
 
 ## 💡 핵심 개념
 
-이 구조는 AI가 똑똑해서 돌아가는 시스템이 아니다.  
+이 구조는 AI가 똑똑해서 돌아가는 시스템이 아니다.
 **AI가 규칙을 어기지 못해서** 안정적으로 돌아간다.
+
+### 문서 기반 제약 구현
+
+AI 에이전트 실행 시, 시스템 프롬프트에 다음을 포함합니다:
+
+1. **모든 규칙 파일 내용** (rules/*.md) - 규칙을 반드시 알아야 함
+2. **핵심 산출물 내용** (decision.md, project.md, current-sprint.md, plan.md, backlog.md)
+3. **인터페이스 문서 내용** (api.md, ui.md, public-api.md 등)
+4. **멀티 세션 상태 관리 안내** (.ada-status.json 사용법)
+
+이를 통해 AI는:
+- 문서에 명시된 규칙을 따라야만 함
+- 현재 작업 범위(current-sprint.md)를 벗어날 수 없음
+- 기술 기준(project.md)에 없는 기술을 추가할 수 없음
+- 다른 세션과 상태를 공유하며 협업
+
+**파일명만 나열하지 않고, 내용을 포함**하는 것이 핵심입니다.
 
 ---
 
@@ -37,7 +54,8 @@ artifact-driven-agent/
 │   │   ├── run.js             # AI 에이전트 실행
 │   │   └── interactive.js     # 대화형 모드
 │   └── utils/
-│       └── files.js           # 파일/경로 유틸리티
+│       ├── files.js           # 파일/경로 유틸리티
+│       └── sessionState.js    # 멀티 세션 상태 관리
 │
 ├── core/                      # 범용 핵심 (6역할, 8산출물, 5규칙)
 │   ├── roles/
@@ -51,7 +69,6 @@ artifact-driven-agent/
 │   └── cli/
 │
 ├── ai-dev-team/               # 작업 디렉토리 (setup 후 사용)
-├── docs/                      # 가이드 문서
 ├── examples/                  # 예제 프로젝트
 └── scripts/                   # 쉘 스크립트 (레거시)
 ```
@@ -100,6 +117,7 @@ ada --help
 | `ada reset [-f]` | 초기화 |
 | `ada validate [doc]` | 문서 검증 |
 | `ada sessions` | 세션 목록 |
+| `ada sessions -w` | Watch 모드 (실시간 모니터링) |
 | `ada logs [id]` | 로그 확인 |
 | `ada run <role> <tool>` | AI 실행 |
 | `ada <role> <tool>` | AI 실행 (단축) |
@@ -202,20 +220,73 @@ ada frontend gemini
 
 **동작:**
 1. 세션 ID 생성 (YYYYMMDD-HHMMSS-random)
-2. 역할 파일 로드 → 시스템 프롬프트 생성
-3. AI CLI 도구 실행 또는 프롬프트 출력
-4. 세션/로그 기록
+2. `.ada-status.json`에 세션 등록 (멀티 세션 지원)
+3. 역할 파일 로드 → 시스템 프롬프트 생성
+   - 모든 규칙(rules/) 파일 내용 포함
+   - 핵심 산출물(decision.md, project.md 등) 내용 포함
+   - 인터페이스 문서(api.md, ui.md 등) 내용 포함
+4. 활성 세션 및 대기 질문 표시
+5. AI CLI 도구 실행 또는 프롬프트 출력
+6. 세션 종료 시 상태 파일에서 제거
+7. 세션/로그 기록
 
 ---
 
-### `ada sessions` - 세션 목록
+### `ada sessions` - 실시간 세션 상태
 
 **소스:** `src/commands/sessions.js`
 
-AI 에이전트 실행 이력을 확인합니다.
+**실시간 멀티 세션 상태**와 세션 기록을 확인합니다.
 
 ```bash
+# 기본 모드
 ada sessions
+
+# Watch 모드 (실시간 모니터링 대시보드)
+ada sessions --watch
+ada sessions -w
+```
+
+#### 기본 모드 출력 내용:
+
+1. **🟢 활성 세션 (실시간)**: 현재 실행 중인 역할 목록
+2. **⚠️ 대기 질문**: Manager에게 응답 대기 중인 질문
+3. **📊 진행 중인 Task**: Task별 진행률 및 담당자
+4. **📜 최근 세션 기록**: 완료된 세션 히스토리
+
+이 명령어는 멀티 터미널 환경에서 다른 세션들의 작업 상태를 실시간으로 확인할 때 유용합니다.
+
+#### Watch 모드 (Manager 전용):
+
+**실시간 모니터링 대시보드**로, Manager 역할 수행 시 유용합니다.
+
+**주요 기능:**
+- 📊 **통계 패널**: 활성 세션, 대기 질문, 진행 Task, 알림 요약
+- 🟢 **활성 세션**: 각 세션의 역할, 도구, 실행 시간 표시
+- ⚠️ **대기 질문**: 응답이 필요한 질문 강조 표시 (대기 시간 포함)
+- 📊 **진행 Task**: 진행률 바와 색상으로 상태 시각화
+- 🔔 **최근 알림**: 읽음/안읽음 표시
+
+**자동 갱신:**
+- `.ada-status.json` 파일 변경 시 즉시 갱신
+- 2초마다 시간 정보 자동 갱신
+
+**키보드 단축키:**
+- `q` - 종료
+- `r` - 수동 새로고침
+- `c` - 화면 지우기
+- `h` - 도움말
+- `Ctrl+C` - 강제 종료
+
+**사용 시나리오:**
+```bash
+# 터미널 1: Manager Watch 모드 (모니터링)
+ada sessions --watch
+
+# 터미널 2-4: 여러 개발 세션
+ada developer codex
+ada reviewer gemini
+ada qa claude
 ```
 
 ---
@@ -609,7 +680,7 @@ BACKLOG → READY → IN_SPRINT → IN_DEV → IN_REVIEW → IN_QA → DONE
 
 ## 🖥️ 멀티 세션 모드
 
-여러 터미널에서 동시에 다른 역할을 실행할 수 있습니다.
+여러 터미널에서 동시에 다른 역할을 실행할 수 있습니다. 각 세션은 자동으로 등록되고, 상태를 실시간으로 공유합니다.
 
 ### 사용 예시
 
@@ -624,6 +695,17 @@ ada developer codex
 ada reviewer gemini
 ```
 
+### 자동 세션 관리
+
+**세션 시작 시:**
+- `.ada-status.json`에 자동 등록
+- 다른 활성 세션 목록 표시
+- 대기 중인 질문 알림
+
+**세션 종료 시:**
+- 상태 파일에서 자동 제거
+- 보유한 파일 잠금 해제
+
 ### 상태 파일
 
 ```
@@ -632,76 +714,136 @@ ai-dev-team/.ada-status.json
 
 모든 세션이 이 파일을 통해 상태를 공유합니다.
 
-### Manager 모니터링 모드
+**스키마 구성:**
+- `activeSessions[]`: 현재 실행 중인 세션
+- `pendingQuestions[]`: 응답 대기 중인 질문
+- `taskProgress{}`: Task별 진행률
+- `notifications[]`: 세션 간 알림
+- `locks{}`: 파일 잠금 상태
 
-Manager 세션에서 다른 세션들을 모니터링:
+### 실시간 모니터링
+
+어느 터미널에서든 실시간 상태를 확인할 수 있습니다:
+
+```bash
+ada sessions
+```
+
+**출력 예시:**
 
 ```
-━━━━━━━━━━━━━━━━━━━━━━
-📊 세션 모니터링
-━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 세션 상태
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[활성 세션]
-- Developer (codex) - 🟢 작업중
-- Reviewer (gemini) - 🟡 대기
+🟢 활성 세션 (실시간)
 
-[Task 진행]
-- T001: Developer, 70%
-- T002: Reviewer, 대기중
+  역할        도구      시작 시간           상태
+  developer  codex     2024-12-29 14:20   🟢 active
+  reviewer   gemini    2024-12-29 14:25   🟢 active
 
-[대기 질문: 1개]
-⚠️ Q001: Developer 질문 대기 중
-━━━━━━━━━━━━━━━━━━━━━━
+⚠️  대기 질문
+
+  [QD001] developer → manager
+  질문: Redis 캐시를 적용할까요?
+  옵션: y: 적용, n: 미적용
+
+📊 진행 중인 Task
+
+  T001: ████████░░ 80% (IN_REVIEW)
+    담당: developer
+    메모: API 구현 완료, 리뷰 대기 중
 ```
 
 ### 질문/응답 프로토콜
 
-다른 세션에서 질문 발생 시:
+AI 에이전트가 Manager에게 질문해야 할 때, `.ada-status.json`의 `pendingQuestions`에 질문을 추가합니다.
 
-```
-# Developer 터미널
-━━━━━━━━━━━━━━━━━━━━━━
-📨 질문 등록됨 [QD001]
-━━━━━━━━━━━━━━━━━━━━━━
-질문: Redis 캐시를 적용할까요?
-옵션: (y) 적용 / (n) 미적용
+**질문 등록 (AI가 수행):**
 
-Manager 세션에서 응답 가능합니다.
-또는 이 터미널에서 응답: (y/n): _
+```javascript
+// AI가 .ada-status.json 파일을 직접 수정
+{
+  "pendingQuestions": [
+    {
+      "id": "QD001",
+      "from": "developer",
+      "to": "manager",
+      "question": "Redis 캐시를 적용할까요?",
+      "options": ["y: 적용", "n: 미적용"],
+      "status": "waiting",
+      "createdAt": "2024-12-29T14:30:00Z"
+    }
+  ]
+}
 ```
 
-```
-# Manager 터미널
-━━━━━━━━━━━━━━━━━━━━━━
-⚠️ 새 질문 [Developer]
-━━━━━━━━━━━━━━━━━━━━━━
-Q001: Redis 캐시를 적용할까요?
-옵션: (y) 적용 / (n) 미적용
+**응답 확인:**
 
-응답: y
+Manager 역할(또는 사용자)이 상태 파일을 업데이트하면, Developer 역할이 응답을 읽어서 작업을 계속합니다.
+
+**모니터링:**
+
+```bash
+# 어느 터미널에서든 확인 가능
+ada sessions
 ```
+
+### AI 에이전트의 상태 관리
+
+AI 에이전트는 시스템 프롬프트를 통해 다음 작업을 수행하도록 안내받습니다:
+
+1. **Task 진행 상황 업데이트**: `taskProgress` 섹션 수정
+2. **질문 등록**: `pendingQuestions` 배열에 추가
+3. **알림 전송**: `notifications` 배열에 추가
+4. **파일 잠금**: `locks` 객체로 동시 수정 방지
 
 ### 관련 문서
 
 - `core/rules/session-state.md` - 상태 파일 스키마
 - `core/rules/role-state-protocol.md` - 역할별 프로토콜
+- `src/utils/sessionState.js` - 상태 관리 유틸리티 구현
 
 ---
 
 ## 📦 Feature 단위 구조 (대규모)
 
-규모 M 이상, 기능 3개 이상일 때 사용합니다.
+대규모 프로젝트에서 병렬 개발을 위한 Feature 분리 구조입니다.
+
+### 디렉토리 구조
 
 ```
 ai-dev-team/artifacts/features/
 ├── F001-user-auth/
-│   ├── spec.md
-│   ├── api.md
-│   ├── ui.md
-│   ├── review.md
-│   └── qa.md
-└── _template/
+│   ├── spec.md      # Feature 스펙
+│   ├── api.md       # Feature API
+│   ├── ui.md        # Feature UI
+│   ├── review.md    # 리뷰 기록
+│   └── qa.md        # QA 기록
+└── _template/       # 템플릿
 ```
+
+### 사용 시점
+
+**사용 권장:**
+- 프로젝트 규모 M 이상
+- 기능 3개 이상
+- 병렬 개발 필요
+
+**사용 불필요:**
+- 프로젝트 규모 S
+- 기능 2개 이하
+- 순차 개발
+
+### 명명 규칙
+
+```
+<Feature-ID>-<feature-name>/
+```
+
+**예시:** `F001-user-auth/`, `F002-dashboard/`
+
+각 Feature는 독립적으로 개발/리뷰/QA 가능합니다.
 
 ---
 
