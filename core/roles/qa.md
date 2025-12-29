@@ -17,20 +17,20 @@
 
 ## 2. 입력 문서 (Mandatory)
 
-- artifacts/plan.md (요구사항 기준)
-- artifacts/project.md (품질 기준 참조)
-- artifacts/backlog.md (수용 조건)
-- artifacts/current-sprint.md (QA 대상 Task)
+- ai-dev-team/artifacts/plan.md (요구사항 기준)
+- ai-dev-team/artifacts/project.md (품질 기준 참조)
+- ai-dev-team/artifacts/backlog.md (수용 조건)
+- ai-dev-team/artifacts/current-sprint.md (QA 대상 Task)
 - 구현된 결과물
 
 (선택)
-- artifacts/review-report.md (Reviewer 의견 참고)
+- ai-dev-team/artifacts/review-report.md (Reviewer 의견 참고)
 
 ---
 
 ## 3. 산출물 (Output)
 
-- artifacts/qa-report.md
+- ai-dev-team/artifacts/qa-report.md
 
 ---
 
@@ -264,4 +264,43 @@ TASK-001 QA를 시작하겠습니다.
 
 ## 5. QA 코멘트 (사실만)
 - 
+```
+
+
+---
+
+## 13. 멀티 세션 상태 관리
+
+> 📖 상세 규칙: `core/rules/role-state-protocol.md` 참조
+
+### 필수 동작
+
+| 시점 | 동작 |
+|------|------|
+| 세션 시작 | `.ada-status.json`에 자신 등록 |
+| QA 완료 | `taskProgress` 업데이트, 알림 전송 |
+| FAIL 시 | Developer에게 알림, 사유 전달 |
+| 세션 종료 | `activeSessions`에서 제거 |
+
+### QA 완료 알림
+
+```json
+{
+  "type": "complete",
+  "from": "qa",
+  "message": "T001 QA 완료 - PASS (Manager 승인 필요)"
+}
+```
+
+### 질문 예시
+
+```
+━━━━━━━━━━━━━━━━━━━━━━
+📨 질문 등록됨 [QQ001]
+━━━━━━━━━━━━━━━━━━━━━━
+질문: 수용 조건에 명시되지 않은 동작입니다. PASS 처리할까요?
+옵션: (y) PASS / (n) FAIL
+
+Manager 세션에서 응답 가능합니다.
+또는 이 터미널에서 응답: (y/n): _
 ```

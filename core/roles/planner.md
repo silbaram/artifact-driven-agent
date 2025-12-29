@@ -24,8 +24,8 @@
 
 ## 3. 산출물 (Output)
 
-- artifacts/plan.md (기획서)
-- artifacts/backlog.md (Task 목록)
+- ai-dev-team/artifacts/plan.md (기획서)
+- ai-dev-team/artifacts/backlog.md (Task 목록)
 
 ---
 
@@ -234,4 +234,33 @@ plan.md 확정 후 사용자에게:
 
 새 프로젝트를 시작합니다.
 어떤 것을 만들고 싶으신가요?
+```
+
+
+---
+
+## 9. 멀티 세션 상태 관리
+
+> 📖 상세 규칙: `core/rules/role-state-protocol.md` 참조
+
+### 필수 동작
+
+| 시점 | 동작 |
+|------|------|
+| 세션 시작 | `.ada-status.json`에 자신 등록 |
+| 질문 발생 | `pendingQuestions`에 등록, 응답 대기 |
+| 작업 진행 | `taskProgress` 업데이트 (해당 시) |
+| 세션 종료 | `activeSessions`에서 제거 |
+
+### 질문 예시
+
+```
+━━━━━━━━━━━━━━━━━━━━━━
+📨 질문 등록됨 [QP001]
+━━━━━━━━━━━━━━━━━━━━━━
+질문: "회원 탈퇴" 기능의 우선순위를 어떻게 할까요?
+옵션: (1) 필수 / (2) 선택 / (3) 제외
+
+Manager 세션에서 응답 가능합니다.
+또는 이 터미널에서 응답: _
 ```

@@ -17,14 +17,14 @@ Task 단위로 작업하며, 스프린트 범위를 벗어나지 않는다.
 
 ## 2. 입력 문서 (Mandatory)
 
-- artifacts/plan.md
-- artifacts/project.md
-- artifacts/backlog.md (Task 목록)
-- artifacts/current-sprint.md (현재 작업 범위)
+- ai-dev-team/artifacts/plan.md
+- ai-dev-team/artifacts/project.md
+- ai-dev-team/artifacts/backlog.md (Task 목록)
+- ai-dev-team/artifacts/current-sprint.md (현재 작업 범위)
 
 (선택)
-- artifacts/architecture-options.md (배경 참고용)
-- artifacts/decision.md (Manager 지시사항이 있으면 우선)
+- ai-dev-team/artifacts/architecture-options.md (배경 참고용)
+- ai-dev-team/artifacts/decision.md (Manager 지시사항이 있으면 우선)
 
 ---
 
@@ -32,7 +32,7 @@ Task 단위로 작업하며, 스프린트 범위를 벗어나지 않는다.
 
 - 소스 코드 (src/ 디렉토리)
 - 인터페이스 문서 (프로젝트 유형에 따라)
-- (선택) artifacts/dev-notes.md (구현상 중요한 결정 기록)
+- (선택) ai-dev-team/artifacts/dev-notes.md (구현상 중요한 결정 기록)
 
 ---
 
@@ -207,4 +207,47 @@ Reviewer가 리뷰를 진행할 수 있습니다."
 ━━━━━━━━━━━━━━━━━━━━━━
 
 TASK-001부터 시작하겠습니다.
+```
+
+
+---
+
+## 11. 멀티 세션 상태 관리
+
+> 📖 상세 규칙: `core/rules/role-state-protocol.md` 참조
+
+### 필수 동작
+
+| 시점 | 동작 |
+|------|------|
+| 세션 시작 | `.ada-status.json`에 자신 등록 |
+| 질문 발생 | `pendingQuestions`에 등록, 응답 대기 |
+| 작업 진행 | `taskProgress` 업데이트 (진행률 %) |
+| Task 완료 | 상태 변경, Reviewer에게 알림 |
+| 세션 종료 | `activeSessions`에서 제거 |
+
+### 진행 상황 업데이트
+
+```json
+{
+  "T001": {
+    "status": "IN_DEV",
+    "assignee": "developer",
+    "progress": 70,
+    "note": "API 구현 완료, 테스트 작성 중"
+  }
+}
+```
+
+### 질문 예시
+
+```
+━━━━━━━━━━━━━━━━━━━━━━
+📨 질문 등록됨 [QD001]
+━━━━━━━━━━━━━━━━━━━━━━
+질문: Redis 캐시를 적용할까요?
+옵션: (y) 적용 / (n) 미적용
+
+Manager 세션에서 응답 가능합니다.
+또는 이 터미널에서 응답: (y/n): _
 ```
