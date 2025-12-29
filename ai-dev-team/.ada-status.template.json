@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "updatedAt": "",
+  "currentPhase": "idle",
+  "activeSessions": [],
+  "pendingQuestions": [],
+  "taskProgress": {},
+  "notifications": [],
+  "locks": {}
+}

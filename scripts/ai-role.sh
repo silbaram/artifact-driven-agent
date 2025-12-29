@@ -46,7 +46,7 @@ TEMPLATE_ROLES["game"]="game-logic rendering"
 TEMPLATE_ROLES["cli"]="cli-developer"
 
 # Core 역할
-CORE_ROLES="planner architect developer reviewer qa manager"
+CORE_ROLES="analyzer planner architect developer reviewer qa manager"
 
 #===============================================================================
 # AI 도구 정의

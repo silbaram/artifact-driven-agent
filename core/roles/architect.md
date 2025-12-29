@@ -17,15 +17,15 @@ plan.md를 기반으로 프로젝트 규모를 예측하고,
 
 ## 2. 입력 문서 (Mandatory)
 
-- artifacts/plan.md (필수)
-- (선택) 기존 artifacts/project.md
+- ai-dev-team/artifacts/plan.md (필수)
+- (선택) 기존 ai-dev-team/artifacts/project.md
 
 ---
 
 ## 3. 산출물 (Outputs)
 
-- artifacts/architecture-options.md (협상 과정)
-- artifacts/project.md (확정본, Frozen)
+- ai-dev-team/artifacts/architecture-options.md (협상 과정)
+- ai-dev-team/artifacts/project.md (확정본, Frozen)
 
 ---
 
@@ -238,4 +238,33 @@ project.md는 이제 Frozen 상태입니다.
 
 이 규모 예측에 동의하시나요?
 다르게 생각하시는 부분이 있으면 말씀해주세요.
+```
+
+
+---
+
+## 13. 멀티 세션 상태 관리
+
+> 📖 상세 규칙: `core/rules/role-state-protocol.md` 참조
+
+### 필수 동작
+
+| 시점 | 동작 |
+|------|------|
+| 세션 시작 | `.ada-status.json`에 자신 등록 |
+| 질문 발생 | `pendingQuestions`에 등록, 응답 대기 |
+| 기술 결정 | 중요 결정은 Manager에게 확인 요청 |
+| 세션 종료 | `activeSessions`에서 제거 |
+
+### 질문 예시
+
+```
+━━━━━━━━━━━━━━━━━━━━━━
+📨 질문 등록됨 [QAR01]
+━━━━━━━━━━━━━━━━━━━━━━
+질문: PostgreSQL과 MySQL 중 어떤 것을 선택할까요?
+옵션: (1) PostgreSQL / (2) MySQL
+
+Manager 세션에서 응답 가능합니다.
+또는 이 터미널에서 응답: _
 ```

@@ -17,17 +17,17 @@ project.md 기준으로 코드를 검토하고,
 
 ## 2. 입력 문서 (Mandatory)
 
-- artifacts/plan.md
-- artifacts/project.md
-- artifacts/backlog.md (수용 조건 확인)
-- artifacts/current-sprint.md (리뷰 대상 Task)
+- ai-dev-team/artifacts/plan.md
+- ai-dev-team/artifacts/project.md
+- ai-dev-team/artifacts/backlog.md (수용 조건 확인)
+- ai-dev-team/artifacts/current-sprint.md (리뷰 대상 Task)
 - 소스 코드
 
 ---
 
 ## 3. 산출물 (Output)
 
-- artifacts/review-report.md
+- ai-dev-team/artifacts/review-report.md
 
 ---
 
@@ -282,4 +282,43 @@ TASK-001 리뷰부터 시작하겠습니다.
 
 ## 4. 종합 코멘트
 (사실 기반, 간결하게)
+```
+
+
+---
+
+## 14. 멀티 세션 상태 관리
+
+> 📖 상세 규칙: `core/rules/role-state-protocol.md` 참조
+
+### 필수 동작
+
+| 시점 | 동작 |
+|------|------|
+| 세션 시작 | `.ada-status.json`에 자신 등록 |
+| 리뷰 완료 | `taskProgress` 업데이트, 알림 전송 |
+| REJECT 시 | Developer에게 알림, 질문 등록 (필요시) |
+| 세션 종료 | `activeSessions`에서 제거 |
+
+### 리뷰 완료 알림
+
+```json
+{
+  "type": "complete",
+  "from": "reviewer",
+  "message": "T001 리뷰 완료 - PASS"
+}
+```
+
+### 질문 예시
+
+```
+━━━━━━━━━━━━━━━━━━━━━━
+📨 질문 등록됨 [QR001]
+━━━━━━━━━━━━━━━━━━━━━━
+질문: 이 패턴은 project.md에 없는데, 허용할까요?
+옵션: (y) 허용 / (n) REJECT
+
+Manager 세션에서 응답 가능합니다.
+또는 이 터미널에서 응답: (y/n): _
 ```
