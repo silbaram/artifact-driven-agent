@@ -350,7 +350,10 @@ async function launchTool(tool, systemPrompt, promptFile, logMessage) {
     },
     gemini: {
       cmd: 'gemini',
-      args: ['-i', `@${relativePromptPath}`],
+      args: [],
+      env: {
+        GEMINI_SYSTEM_MD: promptFile  // 시스템 프롬프트 파일 경로
+      },
       automation: 'perfect'
     },
     codex: {
@@ -420,13 +423,17 @@ async function launchTool(tool, systemPrompt, promptFile, logMessage) {
       console.log('');
       logMessage('INFO', `${tool} CLI 실행 (automation: ${config.automation})`);
 
+      // 환경 변수 병합 (도구별 커스텀 환경 변수 포함)
+      const envVars = {
+        ...process.env,
+        ADA_SYSTEM_PROMPT: systemPrompt,
+        ...(config.env || {})  // 도구별 환경 변수 추가
+      };
+
       const child = spawn(cmd, args, {
         stdio: 'inherit',
         shell: true,
-        env: {
-          ...process.env,
-          ADA_SYSTEM_PROMPT: systemPrompt
-        }
+        env: envVars
       });
 
       child.on('close', (code) => {
