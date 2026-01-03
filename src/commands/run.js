@@ -86,6 +86,11 @@ export async function run(role, tool) {
   // 시스템 프롬프트 생성
   const systemPrompt = buildSystemPrompt(workspace, role, roleContent);
 
+  // 시스템 프롬프트를 파일로 저장 (AI 도구가 읽을 수 있도록)
+  const promptFile = path.join(sessionDir, 'system-prompt.md');
+  fs.writeFileSync(promptFile, systemPrompt, 'utf-8');
+  logMessage('INFO', `시스템 프롬프트 저장: ${promptFile}`);
+
   // 다른 활성 세션 확인
   const activeSessions = getActiveSessions().filter(s => s.sessionId !== sessionId);
   const pendingQuestions = getPendingQuestions();
@@ -122,7 +127,7 @@ export async function run(role, tool) {
 
   // 도구별 실행
   try {
-    await launchTool(tool, systemPrompt, logMessage);
+    await launchTool(tool, systemPrompt, promptFile, logMessage);
 
     // 세션 완료 처리
     sessionInfo.status = 'completed';
@@ -332,38 +337,88 @@ function buildSystemPrompt(workspace, role, roleContent) {
   return prompt;
 }
 
-async function launchTool(tool, systemPrompt, logMessage) {
+async function launchTool(tool, systemPrompt, promptFile, logMessage) {
+  // 프롬프트 파일의 상대 경로 (작업 디렉토리 기준)
+  const relativePromptPath = path.relative(process.cwd(), promptFile);
+
+  // 도구별 설정
   const commands = {
-    claude: { cmd: 'claude', args: [] },
-    codex: { cmd: 'codex', args: [] },
-    gemini: { cmd: 'gemini', args: [] },
-    copilot: { cmd: 'gh', args: ['copilot', 'suggest'] }
+    claude: {
+      cmd: 'claude',
+      args: ['--system-prompt-file', promptFile],
+      automation: 'perfect'
+    },
+    gemini: {
+      cmd: 'gemini',
+      args: ['-i', `@${relativePromptPath}`],
+      automation: 'perfect'
+    },
+    codex: {
+      cmd: 'codex',
+      args: [],
+      automation: 'manual',
+      instruction: `@${relativePromptPath}`
+    },
+    copilot: {
+      cmd: 'gh',
+      args: ['copilot'],
+      automation: 'manual',
+      instruction: `@${relativePromptPath}`
+    }
   };
 
-  const { cmd, args } = commands[tool];
+  const config = commands[tool];
+  const { cmd, args } = config;
 
   // 도구 존재 확인
   const which = spawn('which', [cmd], { shell: true });
-  
+
   return new Promise((resolve, reject) => {
     which.on('close', (code) => {
       if (code !== 0) {
         console.log(chalk.yellow(`⚠️  ${tool} CLI가 설치되어 있지 않습니다.`));
         console.log('');
-        console.log(chalk.white('시스템 프롬프트를 출력합니다:'));
+        console.log(chalk.white('시스템 프롬프트가 다음 파일에 저장되었습니다:'));
+        console.log(chalk.cyan(`  ${relativePromptPath}`));
+        console.log('');
         console.log(chalk.gray('─'.repeat(60)));
         console.log(systemPrompt);
         console.log(chalk.gray('─'.repeat(60)));
         console.log('');
-        console.log(chalk.gray('위 내용을 복사하여 AI 도구에 붙여넣으세요.'));
+        console.log(chalk.gray('위 내용을 복사하여 AI 도구에 붙여넣거나, 파일을 읽도록 하세요.'));
         logMessage('WARN', `${tool} CLI not found, prompt displayed`);
         resolve();
         return;
       }
 
+      // 도구별 안내 메시지
+      console.log('');
+      if (config.automation === 'perfect') {
+        // 완전 자동화: 간단한 성공 메시지
+        console.log(chalk.green('━'.repeat(60)));
+        console.log(chalk.green.bold('✓ 역할이 자동으로 설정됩니다'));
+        console.log(chalk.green('━'.repeat(60)));
+        console.log('');
+        console.log(chalk.gray(`시스템 프롬프트: ${relativePromptPath}`));
+        console.log('');
+      } else {
+        // 수동 입력 필요: 명확한 안내
+        console.log(chalk.yellow('━'.repeat(60)));
+        console.log(chalk.yellow.bold('⚠️  중요: AI 도구 시작 후 다음을 입력하세요'));
+        console.log(chalk.yellow('━'.repeat(60)));
+        console.log('');
+        console.log(chalk.cyan.bold(`  ${config.instruction}`));
+        console.log('');
+        console.log(chalk.gray('그 다음 Enter를 눌러 역할을 수행하도록 하세요.'));
+        console.log('');
+        console.log(chalk.yellow('━'.repeat(60)));
+        console.log('');
+      }
+
       // CLI 실행
       console.log(chalk.green(`✓ ${tool} 실행 중...`));
-      logMessage('INFO', `${tool} CLI 실행`);
+      console.log('');
+      logMessage('INFO', `${tool} CLI 실행 (automation: ${config.automation})`);
 
       const child = spawn(cmd, args, {
         stdio: 'inherit',
