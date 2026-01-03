@@ -40,18 +40,37 @@ export function readStatus(retries = 3) {
         return initialStatus;
       }
 
-      const content = fs.readFileSync(statusFile, 'utf-8');
-      const status = JSON.parse(content);
+      let content = fs.readFileSync(statusFile, 'utf-8');
+      try {
+        const status = JSON.parse(content);
+        // 스키마 검증 및 누락된 필드 추가
+        const emptyStatus = getEmptyStatus();
+        Object.keys(emptyStatus).forEach(key => {
+          if (status[key] === undefined) {
+            status[key] = emptyStatus[key];
+          }
+        });
+        return status;
+      } catch (parseError) {
+        if (parseError instanceof SyntaxError && parseError.message.includes('JSON')) {
+          // 파일 내용에서 백슬래시 이스케이프 처리
+          content = content.replace(/\\/g, '\\\\');
+          const status = JSON.parse(content);
 
-      // 스키마 검증 및 누락된 필드 추가
-      const emptyStatus = getEmptyStatus();
-      Object.keys(emptyStatus).forEach(key => {
-        if (status[key] === undefined) {
-          status[key] = emptyStatus[key];
+          // 스키마 검증 및 누락된 필드 추가
+          const emptyStatus = getEmptyStatus();
+          Object.keys(emptyStatus).forEach(key => {
+            if (status[key] === undefined) {
+              status[key] = emptyStatus[key];
+            }
+          });
+          
+          // 복구된 파일 저장
+          fs.writeFileSync(statusFile, JSON.stringify(status, null, 2));
+          return status;
         }
-      });
-
-      return status;
+        throw parseError;
+      }
     } catch (err) {
       if (i === retries - 1) {
         console.error('⚠️  상태 파일 읽기 실패:', err.message);

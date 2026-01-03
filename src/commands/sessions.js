@@ -3,7 +3,7 @@ import path from 'path';
 import chalk from 'chalk';
 import readline from 'readline';
 import { getSessionsDir, isWorkspaceSetup, getWorkspaceDir } from '../utils/files.js';
-import { getActiveSessions, getPendingQuestions, readStatus, getStatusFilePath } from '../utils/sessionState.js';
+import { getActiveSessions, getPendingQuestions, readStatus, getStatusFilePath, cleanupZombieSessions } from '../utils/sessionState.js';
 
 export async function sessions(options = {}) {
   if (!isWorkspaceSetup()) {
@@ -18,11 +18,19 @@ export async function sessions(options = {}) {
 
   const sessionsDir = getSessionsDir();
 
+  // 좀비 세션 정리 (60분 이상 된 세션)
+  const removedCount = cleanupZombieSessions(60);
+
   console.log('');
   console.log(chalk.cyan('━'.repeat(60)));
   console.log(chalk.cyan.bold('📋 세션 상태'));
   console.log(chalk.cyan('━'.repeat(60)));
   console.log('');
+
+  if (removedCount > 0) {
+    console.log(chalk.yellow(`🧹 좀비 세션 ${removedCount}개 정리됨 (60분 이상 경과)`));
+    console.log('');
+  }
 
   // 1. 실시간 활성 세션 표시
   const activeSessions = getActiveSessions();
@@ -345,8 +353,20 @@ async function watchSessions() {
   }
 
   // 2초마다 화면 갱신 (시간 표시 업데이트)
+  // 30초마다 좀비 세션 정리 (15번째 호출마다)
+  let tickCount = 0;
   const intervalId = setInterval(() => {
     if (isWatching) {
+      tickCount++;
+
+      // 30초마다 좀비 세션 정리 (2초 × 15 = 30초)
+      if (tickCount % 15 === 0) {
+        const removedCount = cleanupZombieSessions(60); // 60분 이상 된 세션 제거
+        if (removedCount > 0) {
+          lastUpdate = `${new Date().toLocaleTimeString('ko-KR')} (좀비 세션 ${removedCount}개 정리됨)`;
+        }
+      }
+
       drawScreen();
     }
   }, 2000);
