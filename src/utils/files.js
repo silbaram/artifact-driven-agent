@@ -30,7 +30,7 @@ export function getSessionsDir() {
  * 로그 디렉토리 경로 반환
  */
 export function getLogsDir() {
-  return path.join(process.cwd(), 'logs');
+  return path.join(getWorkspaceDir(), '.sessions', 'logs');
 }
 
 /**
