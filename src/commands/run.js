@@ -208,9 +208,7 @@ function buildSystemPrompt(workspace, role, roleContent) {
   const priorityArtifacts = [
     'decision.md',        // 최우선 문서
     'project.md',         // 기술 기준 (Frozen)
-    'current-sprint.md',  // 현재 작업 범위
-    'plan.md',            // 요구사항
-    'backlog.md'          // Task 목록
+    'plan.md'             // 요구사항
   ];
 
   priorityArtifacts.forEach(artifactFile => {
@@ -228,6 +226,69 @@ function buildSystemPrompt(workspace, role, roleContent) {
       prompt += `## ${artifactFile} (아직 작성되지 않음)\n\n`;
     }
   });
+
+  // 2.1 현재 활성 스프린트 포함
+  const sprintsDir = path.join(artifactsDir, 'sprints');
+  if (fs.existsSync(sprintsDir)) {
+    const sprints = fs.readdirSync(sprintsDir, { withFileTypes: true })
+      .filter(dirent => dirent.isDirectory() && !dirent.name.startsWith('_'))
+      .map(dirent => dirent.name);
+
+    // 가장 최근 스프린트 찾기 (sprint-N 형식)
+    const activeSprint = sprints
+      .filter(name => /^sprint-\d+$/.test(name))
+      .sort((a, b) => {
+        const numA = parseInt(a.split('-')[1]);
+        const numB = parseInt(b.split('-')[1]);
+        return numB - numA;
+      })[0];
+
+    if (activeSprint) {
+      const sprintMetaPath = path.join(sprintsDir, activeSprint, 'meta.md');
+      if (fs.existsSync(sprintMetaPath)) {
+        try {
+          const content = fs.readFileSync(sprintMetaPath, 'utf-8');
+          prompt += `## 현재 스프린트: ${activeSprint}/meta.md\n\n`;
+          prompt += content;
+          prompt += '\n\n---\n\n';
+        } catch (err) {
+          prompt += `## ${activeSprint}/meta.md (읽기 실패)\n\n`;
+        }
+      }
+
+      // 스프린트의 Task 파일 목록
+      const sprintTasksDir = path.join(sprintsDir, activeSprint, 'tasks');
+      if (fs.existsSync(sprintTasksDir)) {
+        const taskFiles = fs.readdirSync(sprintTasksDir)
+          .filter(f => f.endsWith('.md') && !f.includes('template'));
+
+        if (taskFiles.length > 0) {
+          prompt += `## 현재 스프린트 Task 파일 목록\n\n`;
+          prompt += `다음 Task 파일들을 필요 시 읽어서 확인하세요:\n`;
+          taskFiles.forEach(f => {
+            prompt += `- sprints/${activeSprint}/tasks/${f}\n`;
+          });
+          prompt += '\n---\n\n';
+        }
+      }
+    }
+  }
+
+  // 2.2 Backlog Task 목록
+  const backlogDir = path.join(artifactsDir, 'backlog');
+  if (fs.existsSync(backlogDir)) {
+    const backlogFiles = fs.readdirSync(backlogDir)
+      .filter(f => f.endsWith('.md') && f.startsWith('task-'));
+
+    if (backlogFiles.length > 0) {
+      prompt += `## Backlog Task 목록\n\n`;
+      prompt += `다음 Task 파일들을 필요 시 읽어서 확인하세요:\n`;
+      backlogFiles.forEach(f => {
+        prompt += `- backlog/${f}\n`;
+      });
+      prompt += '\n---\n\n';
+    }
+  }
 
   // 3. 인터페이스 문서 전체 포함 (api.md, ui.md 등)
   prompt += '# 인터페이스 산출물 (Interface Artifacts)\n\n';
@@ -307,10 +368,10 @@ function buildSystemPrompt(workspace, role, roleContent) {
   prompt += '\n---\n\n';
   prompt += '# 작업 지침\n\n';
   prompt += '- **문서 기준 판단**: 위에 포함된 문서 내용을 기준으로 판단하세요.\n';
-  prompt += '- **추측 금지**: 문서에 없는 내용은 추측하지 말고 Manager에게 에스컬레이션하세요.\n';
+  prompt += '- **추측 금지**: 문서에 없는 내용은 추측하지 말고 사용자에게 에스컬레이션하세요.\n';
   prompt += '- **규칙 준수**: 모든 규칙(Rules)을 반드시 따라야 합니다.\n';
   prompt += '- **우선순위**: 문서 간 충돌 시 document-priority.md의 우선순위를 따르세요.\n';
-  prompt += '- **현재 범위**: current-sprint.md에 정의된 Task만 작업하세요.\n';
+  prompt += '- **현재 범위**: 현재 스프린트 meta.md에 정의된 Task만 작업하세요.\n';
   prompt += '- **파일 읽기**: 필요한 경우 목록에 표시된 산출물을 파일 읽기 도구로 확인하세요.\n';
   prompt += '\n';
   prompt += '## 멀티 세션 상태 관리\n\n';
@@ -318,46 +379,9 @@ function buildSystemPrompt(workspace, role, roleContent) {
   prompt += '상태 공유를 위해 `ai-dev-team/.ada-status.json` 파일을 사용하세요.\n\n';
   prompt += '**주요 작업:**\n';
   prompt += '1. **Task 진행 상황 업데이트**: 작업 시작/완료 시 taskProgress 업데이트\n';
-  prompt += '2. **질문 등록**: Manager에게 질문이 필요하면 pendingQuestions에 추가\n';
+  prompt += '2. **질문 등록**: 사용자에게 질문이 필요하면 pendingQuestions에 추가\n';
   prompt += '3. **알림 전송**: 다른 역할에게 알릴 사항이 있으면 notifications 추가\n';
-  prompt += '4. **파일 잠금**: backlog.md, current-sprint.md 등 수정 시 locks 사용\n';
-  prompt += '\n상태 파일 스키마는 role-state-protocol.md와 session-state.md를 참조하세요.\n';
-
-  // Manager 역할 특화 안내
-  if (role === 'manager') {
-    prompt += '\n---\n\n';
-    prompt += '## Manager 역할 특화 가이드\n\n';
-    prompt += '당신은 Manager 역할로 실행되었습니다. 다음 작업을 수행하세요:\n\n';
-    prompt += '### 1. 세션 상태 확인\n';
-    prompt += '- `.ada-status.json` 파일을 읽어서 활성 세션 확인\n';
-    prompt += '- `pendingQuestions` 배열에서 대기 중인 질문 확인\n';
-    prompt += '- `taskProgress`에서 진행 중인 Task 확인\n\n';
-    prompt += '### 2. 질문 응답\n';
-    prompt += '대기 중인 질문이 있으면:\n';
-    prompt += '- 질문 내용과 옵션 확인\n';
-    prompt += '- decision.md, project.md, plan.md를 참조하여 판단\n';
-    prompt += '- `.ada-status.json`의 해당 질문 객체 업데이트:\n';
-    prompt += '  ```json\n';
-    prompt += '  {\n';
-    prompt += '    "status": "answered",\n';
-    prompt += '    "answer": "y",\n';
-    prompt += '    "answeredAt": "2024-12-29T..."\n';
-    prompt += '  }\n';
-    prompt += '  ```\n\n';
-    prompt += '### 3. 결정 사항 기록\n';
-    prompt += '중요한 결정을 내렸으면 `decision.md` 파일에 추가:\n';
-    prompt += '- 날짜, 결정 내용, 근거, 결과를 명확히 기록\n';
-    prompt += '- decision.md가 최우선 문서임을 기억\n\n';
-    prompt += '### 4. 스프린트 관리\n';
-    prompt += '- `backlog.md`에서 Task 선택\n';
-    prompt += '- `current-sprint.md` 생성/업데이트\n';
-    prompt += '- Task 상태를 `.ada-status.json`의 taskProgress에 반영\n\n';
-    prompt += '### 5. 에스컬레이션 처리\n';
-    prompt += '- notifications에서 에스컬레이션 알림 확인\n';
-    prompt += '- 문서 충돌, 규칙 외 상황 등을 판단\n';
-    prompt += '- 필요 시 RFC 작성 지시\n\n';
-    prompt += '**중요:** 파일을 읽고 쓸 때는 Read/Write 도구를 사용하세요.\n';
-  }
+  prompt += '4. **상태 파일**: .ada-status.json을 통해 세션 간 상태 공유\n';
 
   return prompt;
 }

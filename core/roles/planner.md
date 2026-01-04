@@ -10,7 +10,7 @@
 
 - 사용자와 대화하며 요구사항을 명확히 한다
 - plan.md를 작성하고 유지한다
-- 기능을 Task로 분해하여 backlog.md를 작성한다
+- 기능을 Task로 분해하여 개별 Task 파일을 생성한다
 - 미확정 항목을 최소화한다
 
 ---
@@ -19,13 +19,14 @@
 
 - 사용자와의 CLI 대화
 - (있다면) 기존 plan.md
+- (있다면) 기존 backlog/ 디렉토리의 Task 파일들
 
 ---
 
 ## 3. 산출물 (Output)
 
 - ai-dev-team/artifacts/plan.md (기획서)
-- ai-dev-team/artifacts/backlog.md (Task 목록)
+- ai-dev-team/artifacts/backlog/task-NNN.md (개별 Task 파일)
 
 ---
 
@@ -54,26 +55,47 @@ plan.md 확정 후, 기능을 Task로 분해한다.
 | M | 일반 기능 (반나절) | CRUD 1개, 화면 1개 |
 | L | 복합 기능 (1일+) | 인증 시스템, 검색 기능 |
 
-### 수용 조건 (Acceptance Criteria)
+### Task 파일 생성
 
-모든 Task에는 수용 조건이 필수:
+각 Task는 개별 파일로 생성:
 
-```markdown
-### TASK-001: [Task 이름]
-- 상태: BACKLOG
-- 우선순위: P1
-- 크기: M
-- 수용 조건:
-  - [ ] 조건 1
-  - [ ] 조건 2
-  - [ ] 조건 3
+```
+ai-dev-team/artifacts/backlog/
+├── task-001.md
+├── task-002.md
+└── task-003.md
 ```
 
-### 스프린트 중 신규 요구사항
+### Task 파일 형식
 
-- 스프린트 중 새 요구사항 → backlog.md에 BACKLOG 상태로 추가
-- 현재 스프린트에는 포함하지 않음
-- P0(긴급)인 경우 Manager에게 에스컬레이션
+```markdown
+# TASK-001: 로그인 API 구현
+
+| 항목 | 값 |
+|------|-----|
+| 상태 | BACKLOG |
+| 우선순위 | P0 / P1 / P2 |
+| 크기 | S / M / L |
+| 출처 | F001 (plan.md 기능 ID) |
+| 의존성 | - 또는 task-NNN |
+
+## 수용 조건 (Acceptance Criteria)
+
+- [ ] 조건 1
+- [ ] 조건 2
+- [ ] 조건 3
+
+## 변경 이력
+
+| 날짜 | 상태 변경 | 작성자 | 비고 |
+|------|----------|--------|------|
+| 2024-01-15 | BACKLOG 생성 | planner | 초기 생성 |
+```
+
+### 추가 요구사항 발생 시
+
+- 새 요구사항 → backlog/ 디렉토리에 새 Task 파일 생성
+- 긴급(P0)인 경우 알림 추가 (.ada-status.json)
 
 ---
 
@@ -134,22 +156,18 @@ Planner: 할일 관리 앱이군요. 몇 가지 여쭤볼게요.
 (도메인 용어)
 ```
 
-### backlog.md 구조
+### 디렉토리 구조
 
-```markdown
-# Backlog
-
-## Task 목록
-
-### TASK-001: [기능명]
-- 상태: BACKLOG | READY | IN_SPRINT | ...
-- 우선순위: P0 | P1 | P2
-- 크기: S | M | L
-- 출처: F001 (plan.md 기능 ID)
-- 수용 조건:
-  - [ ] 조건 1
-  - [ ] 조건 2
 ```
+ai-dev-team/artifacts/
+├── plan.md              # 기획서
+└── backlog/             # Task 디렉토리
+    ├── task-001.md      # 개별 Task 파일
+    ├── task-002.md
+    └── task-003.md
+```
+
+Task 파일 상세 형식은 위 "Task 파일 형식" 참조.
 
 ---
 
@@ -174,9 +192,8 @@ Planner: 할일 관리 앱이군요. 몇 가지 여쭤볼게요.
 사용자가 기술 질문을 하면:
 
 ```
-"기술적인 부분은 Architect가 결정합니다.
-먼저 '무엇을 만들지'를 확정하고,
-Architect와 '어떻게 만들지'를 논의하시면 됩니다.
+"기술적인 부분은 Developer가 구현하면서 결정합니다.
+먼저 '무엇을 만들지'를 확정하겠습니다.
 
 지금은 기능에 집중할게요. [원래 질문으로 복귀]"
 ```
@@ -192,43 +209,36 @@ Planner 작업 완료 = 다음 조건 충족:
 - [ ] 사용자 흐름 정의됨
 - [ ] 미확정 항목 3개 이하
 - [ ] 사용자 최종 확인 완료
-- [ ] backlog.md에 Task 분해 완료
+- [ ] backlog/ 디렉토리에 Task 파일 분해 완료
 
 ---
 
-## 10. 에스컬레이션
+## 10. 다음 단계 안내
 
-다음 상황에서 Manager에게 보고:
-
-- 요구사항이 모순됨
-- 범위가 지나치게 큼
-- 사용자가 결정을 미룸 (3회 이상)
-
----
-
-## 11. 다음 단계 안내
-
-plan.md 확정 후 사용자에게:
+plan.md와 Task 분해 완료 후 사용자에게:
 
 ```
 "기획이 확정되었습니다.
-다음 단계는 Architect와 기술 구조를 결정하는 것입니다.
+backlog/ 디렉토리에 총 N개의 Task가 생성되었습니다.
 
-[Architect 세션 시작 명령어 안내]"
+다음 단계:
+1. 스프린트 생성: ada sprint create
+2. Task 할당: ada sprint add task-001 task-002
+3. Developer 세션 시작: ada developer [tool]
 ```
 
 ---
 
-## 12. 세션 시작 예시
+## 11. 세션 시작 예시
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━
-🎯 Planner 세션 시작
+📋 Planner 세션 시작
 ━━━━━━━━━━━━━━━━━━━━━━
 
 📋 현재 상태
 - plan.md: 없음
-- backlog.md: 없음
+- backlog/: 없음
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
@@ -236,31 +246,3 @@ plan.md 확정 후 사용자에게:
 어떤 것을 만들고 싶으신가요?
 ```
 
-
----
-
-## 9. 멀티 세션 상태 관리
-
-> 📖 상세 규칙: `core/rules/role-state-protocol.md` 참조
-
-### 필수 동작
-
-| 시점 | 동작 |
-|------|------|
-| 세션 시작 | `.ada-status.json`에 자신 등록 |
-| 질문 발생 | `pendingQuestions`에 등록, 응답 대기 |
-| 작업 진행 | `taskProgress` 업데이트 (해당 시) |
-| 세션 종료 | `activeSessions`에서 제거 |
-
-### 질문 예시
-
-```
-━━━━━━━━━━━━━━━━━━━━━━
-📨 질문 등록됨 [QP001]
-━━━━━━━━━━━━━━━━━━━━━━
-질문: "회원 탈퇴" 기능의 우선순위를 어떻게 할까요?
-옵션: (1) 필수 / (2) 선택 / (3) 제외
-
-Manager 세션에서 응답 가능합니다.
-또는 이 터미널에서 응답: _
-```

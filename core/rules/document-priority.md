@@ -8,14 +8,13 @@
 ## 1. 문서 우선순위 (높은 순)
 
 ```
-1. decision.md        (Manager 판단) ─────── 최우선
-2. project.md         (Frozen 상태) ──────── 기술 기준
-3. plan.md            (기획 기준) ─────────── 요구사항 기준
-4. backlog.md         (Task 정의) ─────────── 수용 조건
-5. 인터페이스 문서    ────────────────────── 구현 계약
-6. current-sprint.md  ────────────────────── 현재 범위
-7. architecture-options.md ────────────────── 참고용
-8. review/qa-report.md ───────────────────── 결과물
+1. decision.md                          (사용자/팀 판단) ───── 최우선
+2. project.md                           (Frozen 상태) ───────── 기술 기준
+3. plan.md                              (기획 기준) ─────────── 요구사항 기준
+4. backlog/task-NNN.md                  (Task 정의) ─────────── 수용 조건
+5. 인터페이스 문서                       ─────────────────────── 구현 계약
+6. sprints/sprint-N/meta.md             ─────────────────────── 현재 범위
+7. sprints/sprint-N/review-reports/*.md ─────────────────────── 리뷰 결과
 ```
 
 ---
@@ -26,24 +25,24 @@
 
 - 충돌 시 **상위 문서가 정답**
 - 하위 문서를 상위에 맞게 수정
-- 수정 불가 시 Manager 에스컬레이션
+- 수정 불가 시 사용자에게 질문
 
 ### 2.2 충돌 유형별 처리
 
 | 충돌 | 우선 | 조치 |
 |------|------|------|
 | decision.md ↔ 모든 문서 | decision.md | 다른 문서 수정 |
-| project.md ↔ plan.md | project.md | plan.md 조정 또는 에스컬레이션 |
-| plan.md ↔ backlog.md | plan.md | backlog.md 수정 |
-| backlog.md ↔ 인터페이스 | backlog.md | 인터페이스 수정 |
+| project.md ↔ plan.md | project.md | plan.md 조정 또는 사용자 질문 |
+| plan.md ↔ Task 파일 | plan.md | Task 파일 수정 |
+| Task 파일 ↔ 인터페이스 | Task 파일 | 인터페이스 수정 |
 
 ### 2.3 예외 상황
 
 | 상황 | 처리 |
 |------|------|
-| 상위 문서가 오류 | Manager 에스컬레이션 |
-| 양쪽 모두 합리적 | Manager 판단 |
-| 해석 차이 | 역할 간 협의 후 Manager 확인 |
+| 상위 문서가 오류 | 사용자에게 보고 |
+| 양쪽 모두 합리적 | 사용자 판단 요청 |
+| 해석 차이 | 사용자에게 명확화 요청 |
 
 ---
 
@@ -51,14 +50,13 @@
 
 | 문서 | 작성 | 수정 | 승인 |
 |------|------|------|------|
-| decision.md | Manager | Manager | - |
-| project.md | Architect | 금지 | Manager |
-| plan.md | Planner | Planner | Manager |
-| backlog.md | Planner | Planner/Manager | - |
+| decision.md | 사용자/팀 | 사용자/팀 | - |
+| project.md | 사용자/팀 | 금지 (RFC 필요) | 사용자 |
+| plan.md | Planner | Planner | 사용자 |
+| backlog/task-NNN.md | Planner | Planner/Developer | - |
 | 인터페이스 문서 | Developer | Developer | - |
-| current-sprint.md | Manager | Manager | - |
-| review-report.md | Reviewer | Reviewer | - |
-| qa-report.md | QA | QA | - |
+| sprints/sprint-N/meta.md | 자동 생성 | 사용자 (CLI) | - |
+| review-reports/task-NNN.md | Reviewer | Reviewer | - |
 
 ---
 
@@ -69,18 +67,16 @@
 | 역할 | 필수 참조 |
 |------|----------|
 | Planner | (이전 plan.md) |
-| Architect | plan.md |
-| Developer | plan.md, project.md, backlog.md, current-sprint.md |
-| Reviewer | plan.md, project.md, backlog.md |
-| QA | plan.md, backlog.md |
-| Manager | 전체 |
+| Developer | plan.md, project.md (있으면), sprints/sprint-N/meta.md, tasks/task-NNN.md |
+| Reviewer | plan.md, project.md (있으면), tasks/task-NNN.md |
+| Documenter | plan.md, sprints/sprint-N/meta.md, tasks/*.md |
 
 ### 4.2 참조 순서
 
 작업 시작 시:
-1. decision.md 확인 (Manager 지시사항)
-2. current-sprint.md 확인 (현재 작업)
-3. 관련 상위 문서 확인
+1. decision.md 확인 (사용자 판단 기록)
+2. sprints/sprint-N/meta.md 확인 (현재 스프린트)
+3. 관련 Task 파일 확인
 4. 작업 수행
 
 ---
@@ -134,8 +130,10 @@ v[Major].[Minor]
 
 ### 7.2 충돌 보고 형식
 
+Task 파일에 이슈로 기록하거나 사용자에게 직접 질문:
+
 ```markdown
-## Document Conflict Report
+## 이슈: 문서 충돌 발견
 
 - 발견자: [역할]
 - 일시: YYYY-MM-DD
@@ -151,6 +149,8 @@ v[Major].[Minor]
 
 ### 제안
 [해결 제안]
+
+→ 사용자 승인 대기
 ```
 
 ---
@@ -162,15 +162,17 @@ v[Major].[Minor]
 ```
 decision.md
     ↓ (최우선)
-project.md ←── Frozen
+project.md ←── Frozen (선택)
     ↓
 plan.md
     ↓
-backlog.md
+backlog/task-NNN.md
     ↓
-current-sprint.md ←→ 인터페이스 문서
+sprints/sprint-N/meta.md ←→ 인터페이스 문서
     ↓
-review-report.md / qa-report.md
+sprints/sprint-N/tasks/task-NNN.md
+    ↓
+sprints/sprint-N/review-reports/task-NNN.md
 ```
 
 ### 충돌 시 판단 흐름
@@ -183,14 +185,14 @@ decision.md에 관련 판단 있음?
 └── No ↓
 
 project.md와 충돌?
-├── Yes → project.md 따름
+├── Yes → project.md 따름 (있으면)
 └── No ↓
 
 plan.md와 충돌?
 ├── Yes → plan.md 따름
 └── No ↓
 
-backlog.md와 충돌?
-├── Yes → backlog.md 따름
+Task 파일과 충돌?
+├── Yes → Task 파일 따름
 └── No → 하위 문서 기준으로 판단
 ```

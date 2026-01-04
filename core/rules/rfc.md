@@ -11,7 +11,7 @@
 ## RFC 절차
 
 1. RFC 문서 작성 (`rfc/RFC-NNNN-title.md`)
-2. Manager 리뷰
+2. 사용자 리뷰
 3. 승인/거부 결정
 4. 승인 시: 문서 업데이트 + decision.md 기록
 
