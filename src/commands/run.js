@@ -95,17 +95,42 @@ export async function run(role, tool) {
   const activeSessions = getActiveSessions().filter(s => s.sessionId !== sessionId);
   const pendingQuestions = getPendingQuestions();
 
+  // 터미널 타이틀 설정
+  const terminalTitle = `ADA: ${role} (${tool})`;
+  process.stdout.write(`\x1b]0;${terminalTitle}\x07`);
+
   console.log('');
   console.log(chalk.cyan('━'.repeat(60)));
   console.log(chalk.cyan.bold('🚀 AI 에이전트 실행'));
   console.log(chalk.cyan('━'.repeat(60)));
   console.log('');
+
+  // 역할 강조 표시
+  const roleEmojis = {
+    'analyzer': '🔍',
+    'planner': '📋',
+    'architect': '🏛️',
+    'developer': '💻',
+    'backend': '⚙️',
+    'frontend': '🎨',
+    'reviewer': '👀',
+    'qa': '🧪',
+    'manager': '👔',
+    'library-developer': '📚',
+    'game-logic': '🎮',
+    'rendering': '🎬',
+    'cli-developer': '⌨️'
+  };
+
+  const roleEmoji = roleEmojis[role] || '🤖';
+  console.log(chalk.bgCyan.black.bold(`  ${roleEmoji} 역할: ${role.toUpperCase()}  `));
+  console.log('');
+
   console.log(chalk.white(`  세션 ID:  ${chalk.yellow(sessionId)}`));
   console.log(chalk.white(`  템플릿:   ${chalk.green(template)}`));
-  console.log(chalk.white(`  역할:     ${chalk.green(role)}`));
   console.log(chalk.white(`  도구:     ${chalk.green(tool)}`));
   console.log(chalk.white(`  작업공간: ${chalk.gray('ai-dev-team/')}`));
-  console.log(chalk.white(`  로그:     ${chalk.gray(`logs/${sessionId}.log`)}`));
+  console.log(chalk.white(`  로그:     ${chalk.gray(`.sessions/logs/${sessionId}.log`)}`));
   console.log('');
 
   // 멀티 세션 정보 표시
