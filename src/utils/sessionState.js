@@ -21,7 +21,8 @@ function getEmptyStatus() {
     pendingQuestions: [],
     taskProgress: {},
     notifications: [],
-    locks: {}
+    locks: {},
+    meta: {}
   };
 }
 
@@ -178,7 +179,7 @@ export function updateSessionStatus(sessionId, newStatus) {
 /**
  * 질문 추가
  */
-export function addQuestion(from, to, question, options = [], priority = 'normal') {
+export function addQuestion(from, to, question, options = [], priority = 'normal', metadata = {}) {
   const status = readStatus();
 
   const questionId = `Q${from.substring(0, 1).toUpperCase()}${String(status.pendingQuestions.length + 1).padStart(3, '0')}`;
@@ -193,6 +194,15 @@ export function addQuestion(from, to, question, options = [], priority = 'normal
     status: 'waiting',
     createdAt: new Date().toISOString()
   };
+
+  if (metadata && typeof metadata === 'object') {
+    if (metadata.action) {
+      newQuestion.action = metadata.action;
+    }
+    if (metadata.payload) {
+      newQuestion.payload = metadata.payload;
+    }
+  }
 
   status.pendingQuestions.push(newQuestion);
 

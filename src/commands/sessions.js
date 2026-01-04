@@ -2,7 +2,8 @@ import fs from 'fs-extra';
 import path from 'path';
 import chalk from 'chalk';
 import readline from 'readline';
-import { getSessionsDir, isWorkspaceSetup, getWorkspaceDir } from '../utils/files.js';
+import { spawnSync } from 'child_process';
+import { getSessionsDir, isWorkspaceSetup, getWorkspaceDir, getPackageRoot } from '../utils/files.js';
 import {
   getActiveSessions,
   getPendingQuestions,
@@ -265,6 +266,7 @@ async function watchSessions() {
     }
 
     answerQuestion(currentQuestion.id, answer);
+    await handleQuestionAction(currentQuestion, answer);
 
     console.log(chalk.green(`  저장 완료: ${currentQuestion.id}`));
     console.log('');
@@ -282,6 +284,145 @@ async function watchSessions() {
         resolve(answer);
       });
     });
+  }
+
+  async function handleQuestionAction(question, answer) {
+    if (!question.action) {
+      return;
+    }
+
+    if (question.action === 'sprint_setup') {
+      if (!shouldProceed(answer)) {
+        console.log(chalk.gray('  처리하지 않음'));
+        return;
+      }
+
+      await runSprintSetup();
+    }
+  }
+
+  function shouldProceed(answer) {
+    const normalized = (answer || '').trim().toLowerCase();
+    if (!normalized) {
+      return false;
+    }
+
+    if (normalized.includes('아니오') || normalized.includes('거부') || normalized === 'no' || normalized === 'n') {
+      return false;
+    }
+
+    return (
+      normalized.startsWith('예') ||
+      normalized.includes('처리') ||
+      normalized === 'yes' ||
+      normalized === 'y'
+    );
+  }
+
+  async function runSprintSetup() {
+    const workspace = getWorkspaceDir();
+    const backlogDir = path.join(workspace, 'artifacts', 'backlog');
+
+    console.log('');
+    console.log(chalk.cyan('━'.repeat(60)));
+    console.log(chalk.cyan.bold('?? 스프린트 생성/Task 할당'));
+    console.log(chalk.cyan('━'.repeat(60)));
+
+    if (!runAdaCommand(['sprint', 'create'])) {
+      console.log(chalk.red('  스프린트 생성에 실패했습니다.'));
+      console.log('');
+      return;
+    }
+
+    if (!fs.existsSync(backlogDir) || !fs.statSync(backlogDir).isDirectory()) {
+      console.log(chalk.yellow('  backlog/ 디렉토리가 없습니다.'));
+      console.log('');
+      return;
+    }
+
+    const taskIds = fs.readdirSync(backlogDir)
+      .filter(file => /^task-\d+\.md$/i.test(file))
+      .map(file => file.replace(/\.md$/i, ''));
+
+    if (taskIds.length === 0) {
+      console.log(chalk.yellow('  backlog에 Task가 없습니다.'));
+      console.log('');
+      return;
+    }
+
+    console.log(chalk.gray('  backlog Task 목록:'));
+    taskIds.forEach(taskId => {
+      console.log(chalk.gray(`  - ${taskId}`));
+    });
+    console.log('');
+
+    const answer = await askInput(chalk.cyan('  추가할 Task (all/skip/공백 구분): '));
+    const selected = selectTaskIds(taskIds, answer);
+
+    if (selected.length === 0) {
+      console.log(chalk.yellow('  Task 추가를 건너뜁니다.'));
+      console.log('');
+      return;
+    }
+
+    const ok = runAdaCommand(['sprint', 'add', ...selected]);
+    if (!ok) {
+      console.log(chalk.red('  Task 추가에 실패했습니다.'));
+    }
+    console.log('');
+  }
+
+  function selectTaskIds(taskIds, answer) {
+    const input = (answer || '').trim();
+    if (!input) {
+      return [];
+    }
+
+    const normalized = input.toLowerCase();
+    if (normalized === 'skip' || normalized === 'none' || normalized === 'n') {
+      return [];
+    }
+
+    if (normalized === 'all') {
+      return [...taskIds];
+    }
+
+    const selected = input.split(/[\s,]+/)
+      .map(token => token.trim())
+      .filter(Boolean)
+      .map(token => token.startsWith('task-') ? token : `task-${token}`);
+
+    const taskSet = new Set(taskIds);
+    return [...new Set(selected)].filter(taskId => taskSet.has(taskId));
+  }
+
+  function resolveCliPath() {
+    const argvPath = process.argv[1] ? path.resolve(process.argv[1]) : null;
+    const packageCliPath = path.join(getPackageRoot(), 'bin', 'cli.js');
+    const candidates = [argvPath, packageCliPath].filter(Boolean);
+
+    for (const candidate of candidates) {
+      if (candidate && fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+
+    return null;
+  }
+
+  function runAdaCommand(args) {
+    const cliPath = resolveCliPath();
+
+    if (!cliPath) {
+      console.log(chalk.red('  CLI 경로를 찾을 수 없습니다.'));
+      return false;
+    }
+
+    const result = spawnSync(process.execPath, [cliPath, ...args], {
+      stdio: 'inherit',
+      cwd: process.cwd()
+    });
+    return result.status === 0;
   }
 
   // 화면 그리기 함수

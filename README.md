@@ -240,6 +240,7 @@ ada sessions
 ada sessions --watch
 ada sessions -w
 
+# 대기 질문이 있으면 자동으로 응답 프롬프트가 표시됩니다.
 # 세션 로그 확인
 ada logs
 ada logs [session-id]
@@ -255,9 +256,10 @@ ada logs [session-id]
 1. Planner: 요구사항 수집
    → plan.md + backlog/*.md 생성
 
-2. 사용자: 스프린트 생성
-   → ada sprint create
-   → ada sprint add task-001 task-002
+2. Manager: 스프린트 생성/Task 할당
+   → (plan.md Confirmed 후 watch에서 승인하면 자동 실행)
+   → 자동 실행: ada sprint create
+   → 자동 실행: ada sprint add task-001 task-002
 
 3. Developer: Task 구현
    → 코드 작성
@@ -367,6 +369,11 @@ ada reviewer gemini
 ada sessions --watch
 ```
 
+**세션 모니터링 포인트**
+- 대기 질문이 생성되면 watch 화면이 자동 프롬프트로 전환됩니다.
+- 프롬프트는 사용자가 직접 입력하며, 응답은 `.ada-status.json`에 저장됩니다.
+- 승인형 질문에 '예'로 응답하면 필요한 CLI 작업을 자동 실행합니다.
+
 ### 자동 세션 관리
 
 **세션 시작 시:**
@@ -388,6 +395,8 @@ ai-dev-team/.sessions/.ada-status.json
 
 **구성:**
 - `activeSessions[]`: 실행 중인 세션
+- `pendingQuestions[]`: 대기 질문 및 응답 상태
+- `taskProgress[]`: Task 진행 상황
 - `notifications[]`: 세션 간 알림
 - (기존 Manager 관련 필드는 제거됨)
 
@@ -514,3 +523,8 @@ MIT License
 
 - GitHub: [@silbaram](https://github.com/silbaram)
 - npm: [@silbaram/artifact-driven-agent](https://www.npmjs.com/package/@silbaram/artifact-driven-agent)
+
+
+
+
+

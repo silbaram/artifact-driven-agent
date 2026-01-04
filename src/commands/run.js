@@ -17,7 +17,10 @@ import {
   unregisterSession,
   updateSessionStatus,
   getActiveSessions,
-  getPendingQuestions
+  getPendingQuestions,
+  addQuestion,
+  readStatus,
+  writeStatus
 } from '../utils/sessionState.js';
 
 export async function run(role, tool) {
@@ -163,6 +166,11 @@ export async function run(role, tool) {
     // 멀티 세션: 상태 파일에서 세션 제거
     unregisterSession(sessionId);
     logMessage('INFO', `세션 해제: ${sessionId}`);
+
+    // Planner 완료 시 스프린트 준비 질문 등록
+    if (role === 'planner') {
+      maybeNotifySprintSetup(workspace, logMessage);
+    }
   } catch (error) {
     sessionInfo.status = 'error';
     sessionInfo.error = error.message;
@@ -175,6 +183,51 @@ export async function run(role, tool) {
 
     throw error;
   }
+}
+
+function maybeNotifySprintSetup(workspace, logMessage) {
+  const artifactsDir = path.join(workspace, 'artifacts');
+  const planFile = path.join(artifactsDir, 'plan.md');
+
+  if (!fs.existsSync(planFile)) {
+    return;
+  }
+
+  const content = fs.readFileSync(planFile, 'utf-8');
+  if (!isPlanConfirmed(content)) {
+    return;
+  }
+
+  const status = readStatus();
+  if (status.meta?.planConfirmedPrompted) {
+    return;
+  }
+
+  addQuestion(
+    'planner',
+    'manager',
+    'plan.md가 Confirmed 상태입니다. 스프린트를 생성하고 Task를 할당할까요?',
+    ['예, 처리합니다', '아니오'],
+    'high',
+    { action: 'sprint_setup', payload: { source: 'plan_confirmed' } }
+  );
+
+  const updatedStatus = readStatus();
+  updatedStatus.meta = updatedStatus.meta || {};
+  updatedStatus.meta.planConfirmedPrompted = true;
+  writeStatus(updatedStatus);
+
+  logMessage('INFO', '스프린트 생성/Task 할당 질문 등록');
+}
+
+function isPlanConfirmed(content) {
+  return (
+    /문서 상태:\s*Confirmed\b/i.test(content) ||
+    /상태\s*\|\s*Confirmed\b/i.test(content) ||
+    /상태\s*:\s*Confirmed\b/i.test(content) ||
+    /문서 상태:\s*확정/.test(content) ||
+    /상태\s*\|\s*확정/.test(content)
+  );
 }
 
 function buildSystemPrompt(workspace, role, roleContent) {
