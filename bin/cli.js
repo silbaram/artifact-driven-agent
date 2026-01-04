@@ -9,6 +9,7 @@ import { sessions } from '../src/commands/sessions.js';
 import { logs } from '../src/commands/logs.js';
 import { run } from '../src/commands/run.js';
 import { interactive } from '../src/commands/interactive.js';
+import sprint from '../src/commands/sprint.js';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -56,6 +57,12 @@ program
   .description('세션 로그 확인')
   .action(logs);
 
+// Sprint command
+program
+  .command('sprint <action> [tasks...]')
+  .description('스프린트 관리 (create, add, close, list)')
+  .action(sprint);
+
 // Run command
 program
   .command('run <role> <tool>')
@@ -68,7 +75,7 @@ const args = process.argv.slice(2);
 if (args.length === 0) {
   // 인자 없으면 대화형 모드
   interactive();
-} else if (args.length === 2 && !args[0].startsWith('-') && !['setup', 'status', 'reset', 'validate', 'sessions', 'logs', 'run'].includes(args[0])) {
+} else if (args.length === 2 && !args[0].startsWith('-') && !['setup', 'status', 'reset', 'validate', 'sessions', 'logs', 'run', 'sprint'].includes(args[0])) {
   // 두 개의 인자가 명령어가 아니면 role tool로 간주
   run(args[0], args[1]);
 } else {

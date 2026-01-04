@@ -108,7 +108,7 @@ validate_plan() {
     if [ "$tbd_count" -le 3 ]; then
         log_pass "TBD 항목: ${tbd_count}개 (3개 이하)"
     else
-        log_fail "TBD 항목: ${tbd_count}개 (3개 초과 - Architect 진행 불가)"
+        log_fail "TBD 항목: ${tbd_count}개 (3개 초과 - 개발 진행 전 명확화 필요)"
     fi
     
     # 체크리스트 완료율
@@ -176,68 +176,150 @@ validate_project() {
 }
 
 #===============================================================================
-# backlog.md 검증
+# backlog/ 디렉토리 검증
 #===============================================================================
 
 validate_backlog() {
-    local file="$WORKSPACE_DIR/artifacts/backlog.md"
-    
+    local backlog_dir="$WORKSPACE_DIR/artifacts/backlog"
+
     echo ""
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BLUE}📋 backlog.md 검증${NC}"
+    echo -e "${BLUE}📋 backlog/ 디렉토리 검증${NC}"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    
-    if [ ! -f "$file" ]; then
-        log_fail "backlog.md 파일이 존재하지 않습니다"
+
+    if [ ! -d "$backlog_dir" ]; then
+        log_warn "backlog/ 디렉토리가 존재하지 않습니다 (Task 생성 전)"
         return
     fi
-    
-    # Task 개수 확인
-    local task_count=$(grep -c '^### TASK-[0-9]' "$file" 2>/dev/null || echo "0")
+
+    # Task 파일 개수 확인
+    local task_files=($(find "$backlog_dir" -name "task-*.md" -type f 2>/dev/null))
+    local task_count=${#task_files[@]}
+
     if [ "$task_count" -gt 0 ]; then
-        log_pass "Task 정의: ${task_count}개"
+        log_pass "Task 파일: ${task_count}개"
     else
-        log_warn "정의된 Task 없음"
+        log_warn "정의된 Task 파일 없음"
+        return
     fi
-    
-    # 수용 조건 없는 Task 검사
-    local tasks_without_ac=$(grep -B5 '^### TASK-' "$file" | grep -c '수용 조건' 2>/dev/null || echo "0")
-    if [ "$tasks_without_ac" -ge "$task_count" ] && [ "$task_count" -gt 0 ]; then
-        log_pass "모든 Task에 수용 조건 존재"
-    elif [ "$task_count" -gt 0 ]; then
-        log_warn "일부 Task에 수용 조건 누락 가능"
+
+    # 각 Task 파일 검증
+    local tasks_with_ac=0
+    local tasks_with_status=0
+
+    for task_file in "${task_files[@]}"; do
+        # 수용 조건 존재 확인
+        if grep -q '## 수용 조건' "$task_file"; then
+            ((tasks_with_ac++))
+        fi
+
+        # 상태 정보 존재 확인
+        if grep -q '| 상태 |' "$task_file"; then
+            ((tasks_with_status++))
+        fi
+    done
+
+    # 수용 조건 검사
+    if [ "$tasks_with_ac" -eq "$task_count" ]; then
+        log_pass "모든 Task에 수용 조건 존재 (${tasks_with_ac}/${task_count})"
+    else
+        log_warn "일부 Task에 수용 조건 누락 (${tasks_with_ac}/${task_count})"
+    fi
+
+    # 상태 정보 검사
+    if [ "$tasks_with_status" -eq "$task_count" ]; then
+        log_pass "모든 Task에 상태 정보 존재 (${tasks_with_status}/${task_count})"
+    else
+        log_warn "일부 Task에 상태 정보 누락 (${tasks_with_status}/${task_count})"
     fi
 }
 
 #===============================================================================
-# current-sprint.md 검증
+# sprints/sprint-N/meta.md 검증
 #===============================================================================
 
 validate_sprint() {
-    local file="$WORKSPACE_DIR/artifacts/current-sprint.md"
-    
+    local sprints_dir="$WORKSPACE_DIR/artifacts/sprints"
+
     echo ""
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BLUE}📋 current-sprint.md 검증${NC}"
+    echo -e "${BLUE}📋 sprints/ 디렉토리 검증${NC}"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    
-    if [ ! -f "$file" ]; then
-        log_warn "current-sprint.md 파일이 존재하지 않습니다 (스프린트 시작 전)"
+
+    if [ ! -d "$sprints_dir" ]; then
+        log_warn "sprints/ 디렉토리가 존재하지 않습니다 (스프린트 시작 전)"
         return
     fi
-    
-    # 스프린트 번호 확인
-    if grep -qE 'Sprint [0-9]+' "$file"; then
-        log_pass "스프린트 번호 존재"
-    else
-        log_fail "스프린트 번호 없음"
+
+    # sprint-N 디렉토리 찾기
+    local sprint_dirs=($(find "$sprints_dir" -maxdepth 1 -type d -name "sprint-*" ! -name "*_template*" 2>/dev/null))
+    local sprint_count=${#sprint_dirs[@]}
+
+    if [ "$sprint_count" -eq 0 ]; then
+        log_warn "스프린트 디렉토리가 없습니다 (스프린트 시작 전)"
+        return
     fi
-    
-    # 목표 확인
-    if check_section_exists "$file" "스프린트 목표"; then
+
+    log_pass "스프린트 디렉토리: ${sprint_count}개"
+
+    # 최신 스프린트 찾기 (가장 큰 번호)
+    local latest_sprint=""
+    local max_num=0
+
+    for sprint_dir in "${sprint_dirs[@]}"; do
+        local sprint_name=$(basename "$sprint_dir")
+        if [[ "$sprint_name" =~ ^sprint-([0-9]+)$ ]]; then
+            local num="${BASH_REMATCH[1]}"
+            if [ "$num" -gt "$max_num" ]; then
+                max_num="$num"
+                latest_sprint="$sprint_dir"
+            fi
+        fi
+    done
+
+    if [ -z "$latest_sprint" ]; then
+        log_warn "유효한 스프린트 디렉토리를 찾을 수 없습니다"
+        return
+    fi
+
+    local sprint_name=$(basename "$latest_sprint")
+    log_info "최신 스프린트: $sprint_name"
+
+    # meta.md 검증
+    local meta_file="$latest_sprint/meta.md"
+    if [ ! -f "$meta_file" ]; then
+        log_fail "$sprint_name/meta.md 파일이 없습니다"
+        return
+    fi
+
+    log_pass "$sprint_name/meta.md 존재"
+
+    # 필수 섹션 검사
+    if check_section_exists "$meta_file" "스프린트 목표"; then
         log_pass "스프린트 목표 섹션 존재"
     else
-        log_fail "스프린트 목표 섹션 누락"
+        log_warn "스프린트 목표 섹션 누락"
+    fi
+
+    if check_section_exists "$meta_file" "Task 목록"; then
+        log_pass "Task 목록 섹션 존재"
+    else
+        log_warn "Task 목록 섹션 누락"
+    fi
+
+    # tasks/ 디렉토리 검증
+    local tasks_dir="$latest_sprint/tasks"
+    if [ -d "$tasks_dir" ]; then
+        local task_files=($(find "$tasks_dir" -name "task-*.md" -type f 2>/dev/null))
+        local task_count=${#task_files[@]}
+
+        if [ "$task_count" -gt 0 ]; then
+            log_pass "$sprint_name/tasks/ 디렉토리: Task 파일 ${task_count}개"
+        else
+            log_warn "$sprint_name/tasks/ 디렉토리에 Task 파일 없음"
+        fi
+    else
+        log_warn "$sprint_name/tasks/ 디렉토리가 없습니다"
     fi
 }
 

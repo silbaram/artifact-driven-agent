@@ -86,8 +86,8 @@
 [다음 단계]
 - 문서 검토 후 수정이 필요하면 알려주세요
 - 새 기능 추가: Planner 세션 시작
-- 기술 변경: Architect 세션에서 RFC 작성
-- 바로 개발: Manager 세션에서 스프린트 시작
+- 기술 변경: 사용자가 project.md 수정 또는 RFC 작성
+- 바로 개발: 사용자가 스프린트 시작 (ada sprint create)
 ```
 
 ---
@@ -188,13 +188,13 @@ Planner가 plan.md와 backlog.md를 작성합니다."
 
 ### 기술 스택 변경 시
 ```
-"기술 변경이 필요하면 Architect 세션에서 RFC를 작성하세요."
+"기술 변경이 필요하면 사용자가 project.md를 수정하거나 RFC를 작성하세요."
 ```
 
 ### 바로 개발 진행 시
 ```
 "project.md 검토가 완료되면 Planner에게 plan.md 작성을 요청하거나,
-Manager 세션에서 바로 스프린트를 시작할 수 있습니다."
+사용자가 바로 스프린트를 시작할 수 있습니다 (ada sprint create)."
 ```
 
 ---
@@ -236,35 +236,8 @@ Analyzer: ./my-project 분석을 시작합니다.
 
 [다음 단계]
 - 새 기능 추가 → Planner 세션
-- 기술 변경 → Architect 세션 (RFC)
-- 바로 개발 → Manager 세션
+- 기술 변경 → 사용자가 project.md 수정 또는 RFC 작성
+- 바로 개발 → 사용자가 스프린트 시작 (ada sprint create)
 ```
 
 
----
-
-## 12. 멀티 세션 상태 관리
-
-> 📖 상세 규칙: `core/rules/role-state-protocol.md` 참조
-
-### 필수 동작
-
-| 시점 | 동작 |
-|------|------|
-| 세션 시작 | `.ada-status.json`에 자신 등록 |
-| 질문 발생 | `pendingQuestions`에 등록, 응답 대기 |
-| 작업 진행 | `taskProgress` 업데이트 |
-| 세션 종료 | `activeSessions`에서 제거 |
-
-### CLI 예시
-
-```
-━━━━━━━━━━━━━━━━━━━━━━
-📨 질문 등록됨 [QA001]
-━━━━━━━━━━━━━━━━━━━━━━
-질문: project.md에 명시되지 않은 라이브러리입니다. 허용할까요?
-옵션: (y) 허용 / (n) 거부
-
-Manager 세션에서 응답 가능합니다.
-또는 이 터미널에서 응답: (y/n): _
-```

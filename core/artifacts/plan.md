@@ -26,7 +26,7 @@
 
 ### 연결성 체크 (Linkage)
 - [ ] 각 기능이 최소 1개 이상의 Task로 분해됨
-- [ ] 모든 Task가 backlog.md에 등록됨
+- [ ] 모든 Task가 backlog/ 디렉토리에 등록됨
 
 ---
 
@@ -125,7 +125,7 @@
 | TBD-001 | [항목] | [설명] | [시점] |
 | TBD-002 | [항목] | [설명] | [시점] |
 
-> ⚠️ 미확정 항목 3개 초과 시 Architect 단계 진행 불가
+> ⚠️ 미확정 항목 3개 초과 시 개발 진행 전 명확화 필요
 
 ---
 
@@ -182,6 +182,6 @@
 
 plan.md가 Confirmed 상태가 되면:
 
-1. **Architect**: project.md 작성 (기술 스택 결정)
-2. **Planner**: backlog.md에 Task 분해
-3. **Manager**: 첫 스프린트 계획
+1. **사용자**: project.md 작성 (기술 스택 결정, 선택사항)
+2. **Planner**: backlog/ 디렉토리에 Task 분해 (task-NNN.md 파일 생성)
+3. **사용자**: 첫 스프린트 계획 (ada sprint create)

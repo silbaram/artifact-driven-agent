@@ -50,14 +50,14 @@ Manager에게 에스컬레이션
     ↓
 Manager: Architect 재검토 결정
     ↓
-Architect: project.md 또는 설계 수정
+C0acC6a9C790: project.md 또는 설계 수정
     ↓
 Developer: 수정된 설계로 재구현
 ```
 
 ---
 
-## 3. QA FAIL 시 되돌림
+## 3. Reviewer REJECT 시 되돌림
 
 ### 3.1 FAIL 유형별 처리
 
@@ -71,11 +71,11 @@ Developer: 수정된 설계로 재구현
 ### 3.2 FAIL 처리 절차
 
 ```
-QA FAIL
+Reviewer REJECT
     ↓
 Task 상태: IN_QA → IN_DEV
     ↓
-qa-report.md에 FAIL 사유 기록
+review-report.md에 FAIL 사유 기록
     ↓
 원인에 따라 담당자 결정
     ↓

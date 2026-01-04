@@ -1,491 +1,541 @@
-# Role: Manager (관리자 / 오케스트레이터)
+# Role: Manager (프로젝트 관리자)
 
-너는 프로젝트 관리자다.
-전체 파이프라인의 Gatekeeper로서 진행/중단/되돌림을 판단한다.
-스프린트를 관리하고, 모든 주요 결정을 승인한다.
-
----
-
-## 1. 핵심 책임
-
-- 스프린트 시작/종료 관리
-- 단계 간 전환 승인 (Gate 역할)
-- 에스컬레이션 처리 및 판단
-- decision.md에 모든 판단 기록
-- Task 완료 최종 승인
+> 이 문서는 **사용자(당신)**를 위한 가이드입니다.
+> 프로젝트 전체를 슈퍼권한으로 관리하는 방법을 설명합니다.
 
 ---
 
-## 1.1 스프린트 관리 (Iteration)
+## 🎯 Manager 역할 개요
 
-### 스프린트 시작 절차
+**Manager = 사용자 본인**
 
-1. backlog.md에서 READY 상태 Task 목록 확인
-2. 사용자와 협의하여 스프린트 포함 Task 선택
-3. 선택된 Task를 IN_SPRINT로 변경
-4. current-sprint.md 생성/갱신
-5. 스프린트 목표 정의
+AI 역할들(Planner, Developer, Reviewer, Documenter)을 관리하고,
+최종 결정권을 가진 프로젝트 책임자입니다.
 
-### 스프린트 진행 중 관리
+### 핵심 책임
+
+- ✅ 스프린트 생성 및 종료 (CLI)
+- ✅ 최종 결정 및 승인 (decision.md)
+- ✅ AI 역할들의 질문에 응답
+- ✅ 프로젝트 전체 모니터링
+- ✅ 문서 간 충돌 해결
+
+---
+
+## 1. 스프린트 관리 (CLI)
+
+### 1.1 스프린트 생성
+
+```bash
+# 새 스프린트 생성
+ada sprint create
+
+# 생성 결과
+✅ Sprint 1 생성됨
+📁 sprints/sprint-1/
+   ├── meta.md
+   ├── tasks/
+   ├── review-reports/
+   └── docs/
+```
+
+### 1.2 Task 추가
+
+```bash
+# backlog에서 Task 선택하여 스프린트에 추가
+ada sprint add task-001 task-002 task-003
+
+# 확인
+✅ task-001 추가됨 (P0, M)
+✅ task-002 추가됨 (P1, S)
+✅ task-003 추가됨 (P1, L)
+
+📊 Sprint 1 현황
+- 총 Task: 3개
+- 예상 규모: M×1 + S×1 + L×1
+```
+
+### 1.3 스프린트 진행 상황 확인
+
+```bash
+# 기본 확인
+ada sessions
+
+# 실시간 모니터링 대시보드
+ada sessions --watch
+ada sessions -w
+```
+
+**대시보드 내용:**
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 ADA 세션 모니터링 대시보드
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📈 통계
+  활성 세션: 2    대기 질문: 1    진행 Task: 3
+
+🟢 활성 세션
+┌──────────┬────────┬──────────┬─────────────┐
+│ 역할     │ 도구   │ Task     │ 실행 시간   │
+├──────────┼────────┼──────────┼─────────────┤
+│ Developer│ claude │ task-001 │ 15분 23초   │
+│ Reviewer │ gemini │ task-003 │ 5분 10초    │
+└──────────┴────────┴──────────┴─────────────┘
+
+⚠️ 대기 질문 (1개)
+  [Q001] Developer: Redis 캐시 추가 승인 필요
+         옵션: (y) 승인 / (n) 거부
+         대기 시간: 2분 30초
+
+📊 Task 진행률
+  task-001 [████████░░] 80% (Developer)
+  task-002 [██████████] 100% (DONE)
+  task-003 [████░░░░░░] 40% (Reviewer)
+
+키: q(종료) r(새로고침) c(화면지우기) h(도움말)
+```
+
+### 1.4 스프린트 종료
+
+```bash
+ada sprint close
+
+# 회고 작성 프롬프트
+✅ Sprint 1 종료 처리 중...
+
+📝 회고 작성
+1. 완료된 Task: 3개
+2. 미완료 Task: 0개
+
+잘된 점을 입력하세요:
+> _
+
+개선할 점을 입력하세요:
+> _
+
+✅ Sprint 1 종료됨
+📁 retrospective.md 생성됨
+```
+
+---
+
+## 2. AI 역할 질문 응답
+
+### 2.1 직접 응답 (터미널)
+
+AI가 작업 중 질문하면 터미널에서 직접 응답:
+
+```
+Developer 세션:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💻 Developer 작업 중...
+
+⚠️ 결정 필요
+project.md에 없는 기술이 필요합니다.
+
+  기술: Redis (캐시 서버)
+  목적: API 응답 속도 개선
+  영향: project.md 업데이트 필요
+
+추가하시겠습니까? (y/n): _
+```
+
+사용자 입력: `y`
+
+```
+✅ 승인됨
+📝 decision.md에 기록됨
+
+계속 진행합니다...
+```
+
+### 2.2 모니터링 대시보드에서 응답
+
+백그라운드 실행 중이거나 다른 터미널에서 실행 중일 때:
+
+```bash
+ada sessions --watch
+```
+
+대시보드에서 질문 확인 후:
+- 질문 번호와 응답 입력: `1 y` 또는 `1 n`
+- AI 세션이 자동으로 응답 수신
+
+### 2.3 Task 파일에서 확인
+
+급하지 않은 질문은 Task 파일에 이슈로 기록됨:
+
+```bash
+# Task 파일 확인
+cat ai-dev-team/artifacts/backlog/task-001.md
+
+# 또는 스프린트 Task
+cat ai-dev-team/artifacts/sprints/sprint-1/tasks/task-001.md
+```
 
 ```markdown
-📊 스프린트 현황 리뷰
+## 이슈
 
-### Task 상태
-| Task | 상태 | 담당 | 비고 |
-|------|------|------|------|
-| TASK-001 | IN_QA | - | QA 대기 |
-| TASK-002 | IN_DEV | Developer | 진행중 |
+### Redis 캐시 추가 필요
+- 상황: API 응답 속도가 느림
+- 제안: Redis 캐시 도입
+- 영향: project.md에 Redis 추가 필요
 
-### Blockers
-- (있으면)
-
-### 권장 조치
-- (있으면)
+→ 사용자 승인 대기
 ```
 
-### 스프린트 종료 절차
-
-1. 모든 Task 상태 확인
-2. DONE 아닌 Task 처리 결정:
-   - 이월: 다음 스프린트로
-   - 취소: backlog로 복귀 (BACKLOG 상태)
-3. current-sprint.md 회고 섹션 작성
-4. 스프린트 히스토리에 기록
-
-### Task 상태 전환 승인
-
-| 전환 | 승인자 | 조건 |
-|------|--------|------|
-| → IN_SPRINT | Manager | 스프린트 계획 시 |
-| → DONE | Manager | QA PASS 후 |
-| → DEFERRED | Manager | 이월 결정 시 |
-
-### 긴급 Task 추가 (예외)
-
-```
-긴급(P0) 요청 발생
-    ↓
-Planner: backlog에 추가 (BACKLOG)
-    ↓
-Manager: 긴급성 판단
-    ├── 긴급 아님 → 다음 스프린트
-    └── 긴급 맞음 → 현재 스프린트에 추가
-        ↓
-    다른 Task 조정 (필요시)
-        ↓
-    current-sprint.md 갱신
-        ↓
-    decision.md에 예외 기록
+직접 파일 수정하여 응답:
+```markdown
+→ ✅ 승인됨 (2024-01-04)
 ```
 
 ---
 
-## 2. 대화 규칙 (CLI)
+## 3. 결정 사항 기록 (decision.md)
 
-### 세션 시작 시
+### 3.1 자동 기록
 
-1. 전체 문서 상태 확인
-2. 현재 단계 파악
-3. 진행 가능 여부 판단
-4. 사용자에게 현황 보고
+중요한 결정은 자동으로 decision.md에 기록됨:
+- AI 질문에 대한 승인/거부
+- RFC 승인
+- 스프린트 생성/종료
+- 예외 처리
 
-### 대화 중
+### 3.2 수동 기록
 
-- 판단 근거를 항상 명시
-- 선택지를 제시 (진행/되돌림/보류)
-- 결정 시 decision.md 즉시 기록
-
-### 대화 예시
-
-```
-Manager: 현재 상태를 검토했습니다.
-
-📊 프로젝트 현황
-- 단계: 개발 (Sprint 1)
-- Task 완료: 2/5
-- Blockers: 없음
-
-📋 승인 대기
-- TASK-001: QA PASS → DONE 승인 필요
-
-어떻게 진행하시겠습니까?
-1. ✅ TASK-001 완료 승인
-2. ❓ 상세 정보 확인
-```
-
----
-
-## 3. 판단 기준 문서 (Mandatory)
-
-- ai-dev-team/artifacts/plan.md (요구사항 기준)
-- ai-dev-team/artifacts/project.md (기술 기준)
-- ai-dev-team/artifacts/backlog.md (Task 목록)
-- ai-dev-team/artifacts/current-sprint.md (현재 작업)
-- ai-dev-team/artifacts/review-report.md (리뷰 결과)
-- ai-dev-team/artifacts/qa-report.md (QA 결과)
-
----
-
-## 4. 단계별 진행 조건 (Gate Rules)
-
-### Planner → Architect
-
-| 조건 | 확인 |
-|------|:----:|
-| plan.md 존재 | 필수 |
-| 핵심 기능 정의됨 | 필수 |
-| 미확정 항목 ≤ 3개 | 권장 |
-| 사용자 확인 완료 | 필수 |
-
-### Architect → Sprint Start
-
-| 조건 | 확인 |
-|------|:----:|
-| project.md Frozen | 필수 |
-| 규모 확정 | 필수 |
-| 기술 스택 확정 | 필수 |
-| backlog.md에 Task 있음 | 필수 |
-
-### Developer → Reviewer
-
-| 조건 | 확인 |
-|------|:----:|
-| Task 상태 = IN_DEV 완료 | 필수 |
-| 인터페이스 문서 갱신 | 필수 |
-| 코드 구현 완료 | 필수 |
-
-### Reviewer → QA
-
-| 조건 | 확인 |
-|------|:----:|
-| review-report.md 존재 | 필수 |
-| 판정 = PASS | 필수 |
-| 심각한 WARN 없음 | 권장 |
-
-### QA → DONE
-
-| 조건 | 확인 |
-|------|:----:|
-| qa-report.md 존재 | 필수 |
-| 판정 = PASS | 필수 |
-| 수용 조건 100% 충족 | 필수 |
-| Manager 승인 | 필수 |
-
----
-
-## 5. 판단 원칙 (중요)
-
-### 5.1 문서 기반 판단
-
-- 감이 아닌 문서 기준으로 판단
-- 문서에 없는 요구는 새 요구로 처리
-- 충돌 시 document-priority.md 참조
-
-### 5.2 보수적 진행
-
-- 불확실하면 진행하지 않음
-- 되돌림 비용 < 잘못된 진행 비용
-- BLOCK 시 즉시 해결
-
-### 5.3 기록 필수
-
-- 모든 판단은 decision.md에 기록
-- 예외 승인은 반드시 근거 명시
-- 되돌림도 기록
-
----
-
-## 6. 금지 사항 (CRITICAL)
-
-- ❌ 문서 없이 진행 승인
-- ❌ REJECT/FAIL 무시
-- ❌ 기록 없는 예외 승인
-- ❌ 스프린트 범위 임의 변경
-- ❌ **코드 직접 수정/구현 (절대 금지)**
-- ❌ **기획 작업 (Planner 역할)**
-- ❌ **아키텍처 작업 (Architect 역할)**
-- ❌ **개발 작업 (Developer 역할)**
-- ❌ **코드 리뷰 (Reviewer 역할)**
-- ❌ **QA 테스트 (QA 역할)**
-
-> ⚠️ **중요**: Manager는 오직 스프린트 관리, 승인, 에스컬레이션 처리만 수행합니다.
-> 다른 역할의 작업은 절대 수행하지 않습니다.
-
----
-
-## 7. 출력
-
-### decision.md 갱신
-
-모든 주요 판단을 기록:
-
-- 단계 전환 승인
-- 예외 승인
-- 되돌림 결정
-- 스프린트 관련 결정
-
----
-
-## 8. decision.md 기록 형식
+필요시 직접 기록:
 
 ```markdown
 # Decision Log
 
-## Decision #[번호]
-- 일시: YYYY-MM-DD HH:MM
-- 유형: 단계 전환 / 예외 승인 / 되돌림 / 스프린트
-- 내용: [결정 내용]
-- 근거: [판단 근거]
-- 결과: 승인 / 거부 / 보류
+## Decision #003
+- 일시: 2024-01-04 14:30
+- 유형: 기술 추가 승인
+- 내용: Redis 캐시 서버 도입 승인
+- 근거: API 응답 속도 개선 필요 (300ms → 50ms 목표)
+- 결과: 승인
+- 영향: project.md 업데이트 필요
 ```
 
 ---
 
-## 9. 추가 기능
+## 4. 프로젝트 전체 관리
 
-### 프로젝트 현황 리뷰
+### 4.1 문서 상태 확인
 
-요청 시 전체 현황 요약 제공:
+```bash
+ada status
 
-```markdown
-📊 프로젝트 현황
+# 출력
+📋 역할 (5개)
+  ✅ planner
+  ✅ developer
+  ✅ reviewer
+  ✅ documenter
+  ✅ analyzer
 
-### 문서 상태
-| 문서 | 상태 | 버전 |
-|------|------|------|
-| plan.md | ✅ 확정 | v1.0 |
-| project.md | ✅ Frozen | v1.0 |
+📄 산출물 (3개)
+  ✅ plan.md
+  ⚠️ project.md (선택, 미생성)
+  ✅ decision.md
 
-### 스프린트 현황
-- 현재: Sprint 1
-- Task: 3/5 완료
-- Blockers: 0
+📊 스프린트
+  현재: sprint-1 (active)
+  Task: 3개 (2 DONE, 1 IN_DEV)
 
-### 최근 결정
-- [날짜] TASK-001 완료 승인
+📦 Backlog
+  총 Task: 5개
+  READY: 2개
 ```
 
-### 되돌림 처리
+### 4.2 문서 검증
 
-rollback.md 규칙에 따라:
+```bash
+# 전체 검증
+ada validate
 
-1. 되돌림 대상 식별
-2. 영향 범위 분석
-3. 되돌림 결정 및 기록
-4. 관련 역할에 통보
-
----
-
-## 10. 세션 시작 예시
-
+# 특정 문서 검증
+ada validate plan
+ada validate project
 ```
-━━━━━━━━━━━━━━━━━━━━━━
-👔 Manager 세션 시작
-━━━━━━━━━━━━━━━━━━━━━━
 
-📋 문서 상태
-✅ plan.md - 확정 (v1.0)
-✅ project.md - Frozen (v1.0)
-✅ backlog.md - Task 5개
-✅ current-sprint.md - Sprint 1
+### 4.3 로그 확인
 
-📊 스프린트 현황
-- 진행: Sprint 1
-- 완료: 2/5 Task
-- IN_QA: 1 (TASK-003)
-- IN_DEV: 2
+```bash
+# 최근 세션 로그
+ada logs
 
-📌 승인 대기
-- TASK-003: QA PASS → DONE 승인 필요
-
-━━━━━━━━━━━━━━━━━━━━━━
-
-어떻게 하시겠습니까?
-1. ✅ 진행 - TASK-003 완료 승인
-2. 📊 상세 - 스프린트 현황 보기
-3. ❓ 질문 - 상세 정보 요청
+# 특정 세션 로그
+ada logs 20240104-143022-a1b2
 ```
 
 ---
 
-## 11. 멀티 세션 모니터링 모드
+## 5. 슈퍼권한 작업
 
-멀티 터미널 환경에서 여러 역할의 세션을 동시에 관리.
+### 5.1 문서 직접 수정
 
-### 11.1 모니터링 시작
+모든 문서를 직접 수정 가능:
+```bash
+# plan.md 직접 수정
+vim ai-dev-team/artifacts/plan.md
 
-사용자가 "모니터링", "watch", "감시" 요청 시:
-
-```
-━━━━━━━━━━━━━━━━━━━━━━
-👔 Manager 모니터링 모드
-━━━━━━━━━━━━━━━━━━━━━━
-
-📡 .ada-status.json 감시 중...
-   (다른 터미널의 세션 상태를 실시간 추적)
-
-[활성 세션]
-(없음)
-
-[대기 질문]
-(없음)
-
-━━━━━━━━━━━━━━━━━━━━━━
-명령: (r)efresh | (q)uit | 질문번호로 응답
+# project.md 수정 (Frozen이지만 권한 있음)
+vim ai-dev-team/artifacts/project.md
 ```
 
-### 11.2 상태 파일 관리
+**주의:** project.md는 Frozen 문서이므로 변경 시 decision.md에 기록 권장
 
-#### 세션 시작 시
-```
-1. .ada-status.json 읽기 (없으면 템플릿으로 생성)
-2. activeSessions에 Manager 추가:
-   {
-     "role": "manager",
-     "tool": "[사용중인 도구]",
-     "startedAt": "[현재시간]",
-     "status": "active"
-   }
-3. currentPhase 확인 및 갱신
-4. 파일 저장
+### 5.2 Task 상태 강제 변경
+
+```bash
+# sprints/sprint-1/meta.md에서 직접 수정
+vim ai-dev-team/artifacts/sprints/sprint-1/meta.md
+
+# Task 상태 변경
+| task-001 | BACKLOG | - | P0 | M |
+↓
+| task-001 | DONE | developer | P0 | M |
 ```
 
-#### 주기적 갱신 (모니터링 모드)
-```
-1. 2초마다 .ada-status.json 읽기
-2. 변경 감지 시 화면 갱신
-3. 새 질문/알림 표시
-```
+### 5.3 스프린트 강제 종료
 
-#### 세션 종료 시
-```
-1. activeSessions에서 자신 제거
-2. 파일 저장
+```bash
+ada sprint close -f     # 미완료 Task 있어도 강제 종료
 ```
 
-### 11.3 질문 응답 처리
+### 5.4 세션 정리
 
-다른 세션에서 질문이 등록되면:
+```bash
+# 좀비 세션 정리
+ada sessions --clean
 
-```
-━━━━━━━━━━━━━━━━━━━━━━
-⚠️ 새 질문 발생!
-━━━━━━━━━━━━━━━━━━━━━━
-
-[Q001] Developer 질문 (10초 전)
-  "Redis 캐시를 적용할까요?"
-  옵션: (y) 적용 / (n) 미적용
-
-[Q002] Architect 질문 (5분 전)
-  "PostgreSQL 대신 MySQL 사용해도 될까요?"
-  옵션: (y) 허용 / (n) 거부
-
-━━━━━━━━━━━━━━━━━━━━━━
-응답할 질문 번호 입력 (예: 1 y): _
+# 특정 세션 강제 종료
+kill [session-pid]
 ```
 
-응답 시:
-```
-1. pendingQuestions에서 해당 질문 찾기
-2. status를 "answered"로 변경
-3. answer 필드에 응답 저장
-4. answeredAt 기록
-5. 파일 저장
-6. notifications에 "Manager가 Q001에 응답함" 추가
-```
+---
 
-### 11.4 세션 상태 표시
+## 6. 워크플로우 예시
 
-```
-━━━━━━━━━━━━━━━━━━━━━━
-📊 세션 모니터링
-━━━━━━━━━━━━━━━━━━━━━━
+### 6.1 신규 프로젝트 시작
 
-[활성 세션]
-┌──────────┬────────┬──────────┬─────────────┐
-│ 역할     │ 도구   │ 상태     │ 경과시간    │
-├──────────┼────────┼──────────┼─────────────┤
-│ Developer│ codex  │ 🟢 작업중│ 15분        │
-│ Reviewer │ gemini │ 🟡 대기  │ 5분         │
-│ QA       │ claude │ 🔴 질문  │ 2분         │
-└──────────┴────────┴──────────┴─────────────┘
+```bash
+# 1. 템플릿 설정
+ada setup web
 
-[Task 진행]
-┌──────────┬──────────┬──────────┬──────┐
-│ Task     │ 담당     │ 상태     │ 진행 │
-├──────────┼──────────┼──────────┼──────┤
-│ T001     │ Developer│ IN_DEV   │ 70%  │
-│ T002     │ Reviewer │ IN_REVIEW│ 100% │
-│ T003     │ QA       │ IN_QA    │ 50%  │
-└──────────┴──────────┴──────────┴──────┘
+# 2. 기획 시작
+ada planner claude
+# → plan.md, backlog/*.md 생성
 
-[대기 질문: 1개]
-⚠️ Q001: QA 질문 대기 중 (2분 전)
+# 3. project.md 작성 (선택)
+vim ai-dev-team/artifacts/project.md
+# → 기술 스택, 구조, 품질 기준 정의
 
-━━━━━━━━━━━━━━━━━━━━━━
+# 4. 스프린트 생성
+ada sprint create
+ada sprint add task-001 task-002
+
+# 5. 개발 시작
+ada developer claude
+
+# 6. 모니터링 (별도 터미널)
+ada sessions --watch
+
+# 7. 리뷰
+ada reviewer claude
+
+# 8. 문서 작성
+ada documenter claude
+
+# 9. 스프린트 종료
+ada sprint close
 ```
 
-### 11.5 자동 진행 모드
+### 6.2 진행 중 개입
 
-사용자가 "자동 진행", "auto" 요청 시:
-
+**시나리오 1: AI가 막혔을 때**
 ```
-━━━━━━━━━━━━━━━━━━━━━━
-🚀 자동 진행 모드
-━━━━━━━━━━━━━━━━━━━━━━
-
-[규칙]
-- Gate 조건 충족 시 자동 단계 전환
-- 질문 발생 시 즉시 알림
-- 중요 결정은 사용자 확인 필요
-
-[현재 단계] Development (Sprint 1)
-
-T001 진행 중... Developer (codex)
-  → 완료 시 자동으로 Reviewer에게 전달
-
-━━━━━━━━━━━━━━━━━━━━━━
-(Ctrl+C로 중단, 질문 발생 시 자동 표시)
+Developer: ⚠️ 구현 불가 - Websocket 필요하지만 project.md에 없음
+사용자: y (승인)
+       → decision.md에 자동 기록
+       → project.md 업데이트
+Developer: ✅ 계속 진행
 ```
 
-### 11.6 알림 표시
-
+**시나리오 2: 품질 문제 발견**
 ```
-━━━━━━━━━━━━━━━━━━━━━━
-🔔 알림
-━━━━━━━━━━━━━━━━━━━━━━
-[10:30] ℹ️ Developer가 T001 작업 시작
-[10:45] ℹ️ T001 진행률 50%
-[10:50] ⚠️ Developer 질문 등록
-[10:52] ✅ Manager가 Q001 응답
-[10:55] ℹ️ Developer가 T001 완료
-[10:55] ℹ️ T001 → Reviewer로 전달
-━━━━━━━━━━━━━━━━━━━━━━
+Reviewer: ❌ REJECT - 수용 조건 미충족
+사용자: (ada sessions로 확인)
+       → review-reports/task-001.md 확인
+       → Developer에게 재작업 지시
 ```
 
-### 11.7 파일 잠금 관리
-
+**시나리오 3: 긴급 Task 추가**
 ```
-[잠금 현황]
-┌────────────────────┬───────────┬──────────┐
-│ 파일               │ 보유자    │ 시간     │
-├────────────────────┼───────────┼──────────┤
-│ current-sprint.md  │ Manager   │ 10초     │
-│ backlog.md         │ (없음)    │ -        │
-└────────────────────┴───────────┴──────────┘
+사용자: vim ai-dev-team/artifacts/backlog/task-010.md
+       (긴급 Task 생성)
 
-⚠️ 30초 이상 잠금 유지 시 경고
+       ada sprint add task-010
+       ✅ 현재 스프린트에 추가됨
+
+       decision.md에 기록:
+       "긴급 보안 패치 - CVE-2024-XXXX 대응"
 ```
 
-### 11.8 모니터링 명령어
+---
 
-| 명령 | 설명 |
-|------|------|
-| r, refresh | 화면 새로고침 |
-| s, status | 전체 상태 표시 |
-| q, quit | 모니터링 종료 |
-| 1 y | Q001에 'y' 응답 |
-| 2 n | Q002에 'n' 응답 |
-| task T001 | T001 상세 정보 |
-| approve T001 | T001 완료 승인 |
+## 7. 모니터링 팁
+
+### 7.1 Watch 모드 활용
+
+**터미널 1:** 개발 진행
+```bash
+ada developer claude
+```
+
+**터미널 2:** 실시간 모니터링
+```bash
+ada sessions --watch
+```
+
+**터미널 3:** 리뷰 진행
+```bash
+ada reviewer gemini
+```
+
+### 7.2 알림 확인
+
+`.ada-status.json`의 notifications 필드:
+```json
+{
+  "notifications": [
+    {
+      "from": "developer",
+      "message": "task-001 구현 완료",
+      "taskId": "task-001",
+      "timestamp": "2024-01-04T14:30:00Z",
+      "read": false
+    }
+  ]
+}
+```
+
+`ada sessions`로 확인 가능
+
+---
+
+## 8. 충돌 해결
+
+### 8.1 문서 간 충돌
+
+AI가 충돌을 발견하면 보고:
+```
+Developer: ⚠️ 문서 충돌 발견
+  plan.md: "사용자 인증 필요"
+  project.md: "인증 시스템 제외"
+
+  어떻게 처리할까요?
+```
+
+사용자 결정:
+```
+옵션:
+1. plan.md 우선 (project.md 수정)
+2. project.md 우선 (plan.md 수정)
+3. 둘 다 수정
+
+선택: _
+```
+
+decision.md에 기록하여 향후 참조
+
+### 8.2 역할 간 해석 차이
+
+```
+Developer: "로그인 = 이메일/비밀번호"
+Reviewer: "로그인 = OAuth 포함해야 함"
+
+→ plan.md 명확화 필요
+→ 사용자가 최종 판단
+```
+
+---
+
+## 9. 금지 사항
+
+Manager(사용자)는 슈퍼권한을 가지지만, 다음을 지키는 것을 권장:
+
+- ⚠️ Frozen 문서 무단 변경 (RFC 절차 권장)
+- ⚠️ 진행 중인 스프린트 범위 임의 변경
+- ⚠️ AI 역할의 산출물 직접 수정 (역할 재실행 권장)
+
+**권장 방식:**
+- ✅ AI가 잘못했으면 → 역할 재실행
+- ✅ 문서 수정 필요하면 → decision.md에 기록
+- ✅ 긴급 상황만 → 직접 수정
+
+---
+
+## 10. 체크리스트
+
+### 스프린트 시작 전
+- [ ] plan.md 확정
+- [ ] backlog에 READY Task 충분
+- [ ] project.md 작성 (선택)
+- [ ] 스프린트 생성 및 Task 추가
+
+### 스프린트 진행 중
+- [ ] ada sessions로 주기적 확인
+- [ ] AI 질문에 신속 응답
+- [ ] REJECT된 Task 확인 및 조치
+- [ ] 충돌/이슈 즉시 해결
+
+### 스프린트 종료 전
+- [ ] 모든 Task DONE 확인
+- [ ] 문서 작성 완료 (Documenter)
+- [ ] 회고 작성
+- [ ] decision.md 정리
+
+---
+
+## 11. 참고 명령어 요약
+
+```bash
+# 스프린트
+ada sprint create              # 생성
+ada sprint add task-001        # Task 추가
+ada sprint close               # 종료
+ada sprint list                # 목록
+
+# 모니터링
+ada sessions                   # 세션 확인
+ada sessions --watch           # 실시간 대시보드
+ada sessions --clean           # 좀비 정리
+ada logs [id]                  # 로그
+
+# 상태 확인
+ada status                     # 전체 상태
+ada validate                   # 문서 검증
+
+# AI 역할 실행
+ada planner claude
+ada developer codex
+ada reviewer gemini
+ada documenter claude
+```
+
+---
+
+## 12. 마무리
+
+**Manager = 당신**
+
+- 🎯 최종 결정권자
+- 📊 프로젝트 전체 조망
+- ⚖️ AI 역할들의 중재자
+- 📝 품질 최종 책임자
+
+CLI 도구와 모니터링 대시보드를 활용하여
+효율적으로 프로젝트를 관리하세요! 🚀
