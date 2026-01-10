@@ -10,6 +10,7 @@ import { logs } from '../src/commands/logs.js';
 import { run } from '../src/commands/run.js';
 import { interactive } from '../src/commands/interactive.js';
 import sprint from '../src/commands/sprint.js';
+import docs from '../src/commands/docs.js';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -64,6 +65,13 @@ program
   .command('sprint <action> [tasks...]')
   .description('스프린트 관리 (create, add, close, list)')
   .action(sprint);
+
+// Docs command
+program
+  .command('docs <action>')
+  .description('문서 관리 (init, generate, publish, serve)')
+  .option('-g, --generator <type>', '문서 생성기 (mkdocs, jekyll)')
+  .action(docs);
 
 // Run command
 program

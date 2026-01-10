@@ -1,0 +1,86 @@
+site_name: Project Documentation
+site_description: Project documentation powered by ADA
+site_author: Development Team
+
+# Repository
+repo_name: username/repo
+repo_url: https://github.com/username/repo
+
+# Theme
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+# Navigation
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quick-start.md
+      - Configuration: getting-started/configuration.md
+  - Guides:
+      - User Guide: guides/user-guide.md
+      - Developer Guide: guides/developer-guide.md
+      - API Reference: guides/api-reference.md
+  - Architecture:
+      - Overview: architecture/overview.md
+      - Design Decisions: architecture/design-decisions.md
+      - Tech Stack: architecture/tech-stack.md
+  - Contributing:
+      - How to Contribute: contributing/contributing.md
+      - Code of Conduct: contributing/code-of-conduct.md
+      - Development Setup: contributing/development.md
+  - Changelog: changelog.md
+
+# Extensions
+markdown_extensions:
+  - admonition
+  - codehilite
+  - footnotes
+  - meta
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.critic
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences
+  - pymdownx.tabbed
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+# Plugins
+plugins:
+  - search
+  - minify:
+      minify_html: true
