@@ -109,6 +109,7 @@ export async function run(role, tool) {
   const roleEmojis = {
     'analyzer': '🔍',
     'planner': '📋',
+    'improver': '🔧',
     'architect': '🏛️',
     'developer': '💻',
     'backend': '⚙️',
@@ -185,21 +186,40 @@ function buildSystemPrompt(workspace, role, roleContent) {
   prompt += roleContent;
   prompt += '\n\n---\n\n';
 
-  // 1. 규칙 문서 전체 포함 (규칙은 반드시 알아야 함)
+  // 1. 규칙 문서 - 역할별 필수 규칙만 포함
+  const roleRules = {
+    planner: ['iteration.md', 'escalation.md', 'document-priority.md'],
+    improver: ['iteration.md', 'escalation.md', 'document-priority.md', 'rfc.md'],
+    developer: ['iteration.md', 'escalation.md', 'rollback.md', 'document-priority.md', 'rfc.md'],
+    reviewer: ['iteration.md', 'rollback.md', 'escalation.md', 'document-priority.md'],
+    documenter: ['escalation.md', 'document-priority.md'],
+    analyzer: ['escalation.md', 'document-priority.md'],
+    manager: ['escalation.md', 'document-priority.md', 'rfc.md']  // Manager는 모든 규칙 참고
+  };
+
+  const requiredRules = roleRules[role] || [];
+
   prompt += '# 규칙 (Rules)\n\n';
-  if (fs.existsSync(rulesDir)) {
-    const rules = fs.readdirSync(rulesDir).filter(f => f.endsWith('.md'));
-    rules.forEach(ruleFile => {
+  prompt += `이 역할에 적용되는 필수 규칙: ${requiredRules.join(', ')}\n\n`;
+
+  if (fs.existsSync(rulesDir) && requiredRules.length > 0) {
+    requiredRules.forEach(ruleFile => {
       const rulePath = path.join(rulesDir, ruleFile);
-      try {
-        const content = fs.readFileSync(rulePath, 'utf-8');
-        prompt += `## ${ruleFile}\n\n`;
-        prompt += content;
-        prompt += '\n\n---\n\n';
-      } catch (err) {
-        prompt += `## ${ruleFile} (읽기 실패)\n\n`;
+      if (fs.existsSync(rulePath)) {
+        try {
+          const content = fs.readFileSync(rulePath, 'utf-8');
+          prompt += `## ${ruleFile}\n\n`;
+          prompt += content;
+          prompt += '\n\n---\n\n';
+        } catch (err) {
+          prompt += `## ${ruleFile} (읽기 실패)\n\n`;
+        }
+      } else {
+        prompt += `## ${ruleFile} (파일 없음)\n\n`;
       }
     });
+  } else if (requiredRules.length === 0) {
+    prompt += '(이 역할에 필수 규칙이 지정되지 않았습니다)\n\n';
   }
 
   // 2. 핵심 산출물 전체 포함 (우선순위 높은 문서)
@@ -228,6 +248,8 @@ function buildSystemPrompt(workspace, role, roleContent) {
   });
 
   // 2.1 현재 활성 스프린트 포함
+  prompt += '# 현재 스프린트 정보\n\n';
+
   const sprintsDir = path.join(artifactsDir, 'sprints');
   if (fs.existsSync(sprintsDir)) {
     const sprints = fs.readdirSync(sprintsDir, { withFileTypes: true })
@@ -256,22 +278,65 @@ function buildSystemPrompt(workspace, role, roleContent) {
         }
       }
 
-      // 스프린트의 Task 파일 목록
+      // 스프린트의 Task 파일 전체 포함
       const sprintTasksDir = path.join(sprintsDir, activeSprint, 'tasks');
       if (fs.existsSync(sprintTasksDir)) {
         const taskFiles = fs.readdirSync(sprintTasksDir)
           .filter(f => f.endsWith('.md') && !f.includes('template'));
 
         if (taskFiles.length > 0) {
-          prompt += `## 현재 스프린트 Task 파일 목록\n\n`;
-          prompt += `다음 Task 파일들을 필요 시 읽어서 확인하세요:\n`;
+          prompt += `## 현재 스프린트 Task 파일들\n\n`;
+
+          // 각 Task 파일 내용 포함
           taskFiles.forEach(f => {
-            prompt += `- sprints/${activeSprint}/tasks/${f}\n`;
+            const taskPath = path.join(sprintTasksDir, f);
+            try {
+              const taskContent = fs.readFileSync(taskPath, 'utf-8');
+              prompt += `### ${f}\n\n`;
+              prompt += taskContent;
+              prompt += '\n\n---\n\n';
+            } catch (err) {
+              prompt += `### ${f} (읽기 실패)\n\n`;
+            }
           });
-          prompt += '\n---\n\n';
+        } else {
+          // Task 파일이 없는 경우
+          prompt += `## ⚠️ 스프린트에 Task 없음\n\n`;
+          prompt += `현재 스프린트(${activeSprint})에 할당된 Task가 없습니다.\n\n`;
+          prompt += '**다음 단계:**\n';
+          prompt += '1. `ada sprint add task-001 task-002` 명령으로 Task 할당\n';
+          prompt += '2. Developer 세션 재시작\n\n';
+          prompt += '---\n\n';
         }
+      } else {
+        // tasks 디렉토리가 없는 경우
+        prompt += `## ⚠️ tasks 디렉토리 없음\n\n`;
+        prompt += `현재 스프린트(${activeSprint})에 tasks 디렉토리가 없습니다.\n\n`;
+        prompt += '스프린트 구조가 올바르지 않습니다. `ada sprint create` 명령으로 재생성하세요.\n\n';
+        prompt += '---\n\n';
       }
+    } else {
+      // 스프린트가 없는 경우
+      prompt += '## ⚠️ 현재 활성 스프린트 없음\n\n';
+      prompt += '스프린트가 아직 생성되지 않았습니다.\n\n';
+      prompt += '**다음 단계:**\n';
+      prompt += '1. Planner가 plan.md와 backlog/ Task를 작성했는지 확인\n';
+      prompt += '2. `ada sprint create` 명령으로 스프린트 생성\n';
+      prompt += '3. `ada sprint add task-001 task-002` 명령으로 Task 할당\n';
+      prompt += '4. Developer 세션 재시작\n\n';
+      prompt += '**참고:** Developer는 스프린트가 있어야 작업할 수 있습니다.\n';
+      prompt += '스프린트 없이는 어떤 Task를 해야 할지 알 수 없습니다.\n\n';
+      prompt += '---\n\n';
     }
+  } else {
+    // sprints 디렉토리 자체가 없는 경우
+    prompt += '## ⚠️ sprints 디렉토리 없음\n\n';
+    prompt += 'sprints 디렉토리가 존재하지 않습니다.\n\n';
+    prompt += '**다음 단계:**\n';
+    prompt += '1. `ada sprint create` 명령으로 첫 스프린트 생성\n';
+    prompt += '2. Task를 스프린트에 추가\n';
+    prompt += '3. Developer 세션 재시작\n\n';
+    prompt += '---\n\n';
   }
 
   // 2.2 Backlog Task 목록

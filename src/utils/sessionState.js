@@ -196,8 +196,8 @@ export function addQuestion(from, to, question, options = [], priority = 'normal
 
   status.pendingQuestions.push(newQuestion);
 
-  // 알림 추가
-  addNotificationInternal(status, 'question', from, `새 질문 [${questionId}]: ${question}`);
+  // 알림 추가 (to 대상 지정)
+  addNotificationInternal(status, 'question', from, `새 질문 [${questionId}]: ${question}`, to);
 
   writeStatus(status);
   return questionId;
@@ -215,8 +215,16 @@ export function answerQuestion(questionId, answer) {
     question.answer = answer;
     question.answeredAt = new Date().toISOString();
 
-    // 알림 추가
-    addNotificationInternal(status, 'info', 'manager', `질문 ${questionId} 응답됨: ${answer}`);
+    // 질문 관련 알림을 읽음으로 표시
+    status.notifications.forEach(n => {
+      if (n.message.includes(questionId) && !n.read) {
+        n.read = true;
+        n.readAt = new Date().toISOString();
+      }
+    });
+
+    // 응답 알림 추가 (질문자에게)
+    addNotificationInternal(status, 'info', 'manager', `질문 ${questionId} 응답됨: ${answer}`, question.from);
 
     writeStatus(status);
   }
@@ -245,13 +253,14 @@ export function updateTaskProgress(taskId, updates) {
 /**
  * 알림 추가 (내부용)
  */
-function addNotificationInternal(status, type, from, message) {
+function addNotificationInternal(status, type, from, message, to = 'all') {
   const notificationId = `N${String(status.notifications.length + 1).padStart(3, '0')}`;
 
   status.notifications.push({
     id: notificationId,
     type,
     from,
+    to,
     message,
     read: false,
     createdAt: new Date().toISOString()
@@ -266,11 +275,73 @@ function addNotificationInternal(status, type, from, message) {
 /**
  * 알림 추가 (외부용)
  */
-export function addNotification(type, from, message) {
+export function addNotification(type, from, message, to = 'all') {
   const status = readStatus();
-  addNotificationInternal(status, type, from, message);
+  addNotificationInternal(status, type, from, message, to);
   writeStatus(status);
   return status;
+}
+
+/**
+ * 알림을 읽음으로 표시
+ */
+export function markNotificationAsRead(notificationId) {
+  const status = readStatus();
+
+  const notification = status.notifications.find(n => n.id === notificationId);
+  if (notification && !notification.read) {
+    notification.read = true;
+    notification.readAt = new Date().toISOString();
+    writeStatus(status);
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * 여러 알림을 읽음으로 표시
+ */
+export function markNotificationsAsRead(notificationIds) {
+  const status = readStatus();
+  let markedCount = 0;
+
+  notificationIds.forEach(id => {
+    const notification = status.notifications.find(n => n.id === id);
+    if (notification && !notification.read) {
+      notification.read = true;
+      notification.readAt = new Date().toISOString();
+      markedCount++;
+    }
+  });
+
+  if (markedCount > 0) {
+    writeStatus(status);
+  }
+
+  return markedCount;
+}
+
+/**
+ * 특정 조건에 맞는 알림을 읽음으로 표시
+ */
+export function markNotificationsByFilter(filter) {
+  const status = readStatus();
+  let markedCount = 0;
+
+  status.notifications.forEach(n => {
+    if (!n.read && filter(n)) {
+      n.read = true;
+      n.readAt = new Date().toISOString();
+      markedCount++;
+    }
+  });
+
+  if (markedCount > 0) {
+    writeStatus(status);
+  }
+
+  return markedCount;
 }
 
 /**

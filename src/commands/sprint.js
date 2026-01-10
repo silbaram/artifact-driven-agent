@@ -26,7 +26,7 @@ export default async function sprint(action, ...args) {
       await addTasks(sprintsDir, args);
       break;
     case 'close':
-      await closeSprint(sprintsDir);
+      await closeSprint(sprintsDir, args);
       break;
     case 'list':
       await listSprints(sprintsDir);
@@ -35,10 +35,12 @@ export default async function sprint(action, ...args) {
       console.log(chalk.red('❌ 알 수 없는 명령어입니다.'));
       console.log('');
       console.log(chalk.cyan('사용법:'));
-      console.log(chalk.gray('  ada sprint create           - 새 스프린트 생성'));
-      console.log(chalk.gray('  ada sprint add task-001 ... - Task 추가'));
-      console.log(chalk.gray('  ada sprint close            - 현재 스프린트 종료'));
-      console.log(chalk.gray('  ada sprint list             - 스프린트 목록'));
+      console.log(chalk.gray('  ada sprint create              - 새 스프린트 생성'));
+      console.log(chalk.gray('  ada sprint add task-001 ...    - Task 추가'));
+      console.log(chalk.gray('  ada sprint close               - 스프린트 종료 (작업 파일 archive)'));
+      console.log(chalk.gray('  ada sprint close --clean       - 스프린트 종료 (작업 파일 삭제)'));
+      console.log(chalk.gray('  ada sprint close --keep-all    - 스프린트 종료 (파일 유지)'));
+      console.log(chalk.gray('  ada sprint list                - 스프린트 목록'));
       process.exit(1);
   }
 }
@@ -190,8 +192,10 @@ async function addTasks(sprintsDir, taskIds) {
 
 /**
  * 스프린트 종료
+ * @param {string} sprintsDir - 스프린트 디렉토리
+ * @param {Array} args - 옵션 (--clean, --keep-all)
  */
-async function closeSprint(sprintsDir) {
+async function closeSprint(sprintsDir, args = []) {
   const activeSprint = findActiveSprint(sprintsDir);
   if (!activeSprint) {
     console.log(chalk.red('❌ 활성 스프린트가 없습니다.'));
@@ -200,6 +204,10 @@ async function closeSprint(sprintsDir) {
 
   const sprintPath = path.join(sprintsDir, activeSprint);
   const metaPath = path.join(sprintPath, 'meta.md');
+
+  // 옵션 파싱
+  const hasClean = args.includes('--clean');
+  const hasKeepAll = args.includes('--keep-all');
 
   // meta.md 업데이트 (active → completed)
   let metaContent = fs.readFileSync(metaPath, 'utf-8');
@@ -211,13 +219,90 @@ async function closeSprint(sprintsDir) {
 
   fs.writeFileSync(metaPath, metaContent);
 
+  // 작업 파일 정리
+  if (!hasKeepAll) {
+    const tasksDir = path.join(sprintPath, 'tasks');
+    const reviewReportsDir = path.join(sprintPath, 'review-reports');
+
+    if (hasClean) {
+      // --clean: 완전 삭제
+      console.log('');
+      console.log(chalk.yellow('🗑️  작업 파일 삭제 중...'));
+
+      let deletedCount = 0;
+      if (fs.existsSync(tasksDir)) {
+        const taskFiles = fs.readdirSync(tasksDir).filter(f => !f.includes('template'));
+        taskFiles.forEach(f => fs.removeSync(path.join(tasksDir, f)));
+        deletedCount += taskFiles.length;
+      }
+      if (fs.existsSync(reviewReportsDir)) {
+        const reviewFiles = fs.readdirSync(reviewReportsDir).filter(f => !f.includes('template'));
+        reviewFiles.forEach(f => fs.removeSync(path.join(reviewReportsDir, f)));
+        deletedCount += reviewFiles.length;
+      }
+
+      console.log(chalk.gray(`   ✓ ${deletedCount}개 파일 삭제됨`));
+    } else {
+      // 기본: archive/ 폴더로 이동
+      console.log('');
+      console.log(chalk.cyan('📦 작업 파일 보관 중...'));
+
+      const archiveDir = path.join(sprintPath, 'archive');
+      fs.ensureDirSync(archiveDir);
+
+      let archivedCount = 0;
+
+      // tasks/ 이동
+      if (fs.existsSync(tasksDir)) {
+        const taskFiles = fs.readdirSync(tasksDir).filter(f => !f.includes('template'));
+        if (taskFiles.length > 0) {
+          const archiveTasksDir = path.join(archiveDir, 'tasks');
+          fs.ensureDirSync(archiveTasksDir);
+          taskFiles.forEach(f => {
+            fs.moveSync(path.join(tasksDir, f), path.join(archiveTasksDir, f), { overwrite: true });
+          });
+          archivedCount += taskFiles.length;
+        }
+      }
+
+      // review-reports/ 이동
+      if (fs.existsSync(reviewReportsDir)) {
+        const reviewFiles = fs.readdirSync(reviewReportsDir).filter(f => !f.includes('template'));
+        if (reviewFiles.length > 0) {
+          const archiveReviewsDir = path.join(archiveDir, 'review-reports');
+          fs.ensureDirSync(archiveReviewsDir);
+          reviewFiles.forEach(f => {
+            fs.moveSync(path.join(reviewReportsDir, f), path.join(archiveReviewsDir, f), { overwrite: true });
+          });
+          archivedCount += reviewFiles.length;
+        }
+      }
+
+      if (archivedCount > 0) {
+        console.log(chalk.gray(`   ✓ ${archivedCount}개 파일 → archive/`));
+      } else {
+        console.log(chalk.gray(`   ✓ 정리할 파일 없음`));
+      }
+    }
+  }
+
   console.log('');
   console.log(chalk.green(`✅ ${activeSprint}가 종료되었습니다!`));
   console.log('');
+
+  // 정리 결과 안내
+  if (hasKeepAll) {
+    console.log(chalk.gray('📁 모든 파일이 유지되었습니다.'));
+  } else if (hasClean) {
+    console.log(chalk.gray('📁 작업 파일이 삭제되었습니다. (docs/ 문서만 유지)'));
+  } else {
+    console.log(chalk.gray('📁 작업 파일이 archive/에 보관되었습니다.'));
+  }
+
+  console.log('');
   console.log(chalk.cyan('다음 단계:'));
-  console.log(chalk.gray(`   1. meta.md 회고 섹션 작성`));
-  console.log(chalk.gray(`   2. ada documenter [tool]로 문서 작성`));
-  console.log(chalk.gray(`   3. ada sprint create로 다음 스프린트 시작`));
+  console.log(chalk.gray(`   1. ${activeSprint}/docs/ 문서 확인`));
+  console.log(chalk.gray(`   2. ada sprint create로 다음 스프린트 시작`));
   console.log('');
 }
 
