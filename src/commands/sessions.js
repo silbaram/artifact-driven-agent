@@ -23,6 +23,12 @@ export async function sessions(options = {}) {
     return watchSessions();
   }
 
+  // Clean 모드
+  if (options.clean) {
+    const days = parseInt(options.days || '7', 10);
+    return cleanupCompletedSessions(days);
+  }
+
   const sessionsDir = getSessionsDir();
 
   // 좀비 세션 정리 (60분 이상 된 세션)
@@ -565,4 +571,94 @@ async function watchSessions() {
   // 프로세스 종료 처리
   process.on('SIGINT', cleanup);
   process.on('SIGTERM', cleanup);
+}
+
+/**
+ * 완료된 세션 정리
+ * @param {number} days - 지정한 일수보다 오래된 세션만 정리
+ */
+async function cleanupCompletedSessions(days = 7) {
+  const sessionsDir = getSessionsDir();
+
+  if (!fs.existsSync(sessionsDir)) {
+    console.log(chalk.yellow('⚠️  세션 디렉토리가 없습니다.'));
+    return;
+  }
+
+  console.log('');
+  console.log(chalk.cyan('━'.repeat(60)));
+  console.log(chalk.cyan.bold(`완료된 세션 정리 (${days}일 이전)`));
+  console.log(chalk.cyan('━'.repeat(60)));
+  console.log('');
+
+  const now = Date.now();
+  const cutoffTime = now - (days * 24 * 60 * 60 * 1000);
+
+  const sessionDirs = fs.readdirSync(sessionsDir)
+    .filter(f => fs.statSync(path.join(sessionsDir, f)).isDirectory())
+    .sort();
+
+  let completedCount = 0;
+  let skippedCount = 0;
+  let errorCount = 0;
+
+  for (const sessionId of sessionDirs) {
+    const sessionPath = path.join(sessionsDir, sessionId);
+    const sessionFile = path.join(sessionPath, 'session.json');
+
+    try {
+      // session.json 확인
+      if (!fs.existsSync(sessionFile)) {
+        console.log(chalk.gray(`  ${sessionId}: session.json 없음 (건너뜀)`));
+        skippedCount++;
+        continue;
+      }
+
+      // 세션 정보 읽기
+      const session = JSON.parse(fs.readFileSync(sessionFile, 'utf-8'));
+
+      // 세션 시작 시간 파싱
+      let sessionTime;
+      if (session.startedAt) {
+        sessionTime = new Date(session.startedAt).getTime();
+      } else {
+        // session.json에 시간 정보가 없으면 디렉토리 생성 시간 사용
+        const stats = fs.statSync(sessionPath);
+        sessionTime = stats.birthtimeMs || stats.mtimeMs;
+      }
+
+      // cutoff 시간 이후면 건너뜀
+      if (sessionTime > cutoffTime) {
+        console.log(chalk.gray(`  ${sessionId}: ${days}일 이내 (유지)`));
+        skippedCount++;
+        continue;
+      }
+
+      // 완료 상태가 아니면 건너뜀
+      if (session.status !== 'completed' && session.status !== 'error') {
+        console.log(chalk.yellow(`  ${sessionId}: 미완료 상태 (${session.status}) - 유지`));
+        skippedCount++;
+        continue;
+      }
+
+      // 세션 디렉토리 삭제
+      fs.removeSync(sessionPath);
+      console.log(chalk.green(`  ✓ ${sessionId}: 삭제됨 (${session.status})`));
+      completedCount++;
+
+    } catch (error) {
+      console.log(chalk.red(`  ✗ ${sessionId}: 오류 - ${error.message}`));
+      errorCount++;
+    }
+  }
+
+  console.log('');
+  console.log(chalk.cyan('━'.repeat(60)));
+  console.log(chalk.white(`  삭제됨: ${chalk.green(completedCount)}개`));
+  console.log(chalk.white(`  유지됨: ${chalk.gray(skippedCount)}개`));
+  if (errorCount > 0) {
+    console.log(chalk.white(`  오류: ${chalk.red(errorCount)}개`));
+  }
+  console.log(chalk.cyan('━'.repeat(60)));
+  console.log('');
 }

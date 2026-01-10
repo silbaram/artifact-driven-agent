@@ -306,11 +306,23 @@ ada logs [session-id]
 0. Analyzer: 코드베이스 분석
    → project.md 역생성
 
-1. Planner: 추가 기능 기획
-   → plan.md 업데이트
-   → backlog/*.md 생성
+1. [분기점]
 
-2. 이후 신규 프로젝트와 동일
+   A) 신규 기능 추가 시:
+      Planner: 추가 기능 기획
+      → plan.md 업데이트
+      → backlog/*.md 생성
+
+   B) 기존 기능 개선 시:
+      Improver: 개선 분석 및 기획
+      → improvement-reports/IMP-NNN.md 생성
+      → backlog/*.md 생성
+
+2. 사용자: 스프린트 생성
+   → ada sprint create
+   → ada sprint add task-001 task-002
+
+3. 이후 신규 프로젝트와 동일 (Developer → Reviewer → Documenter)
 ```
 
 ### Task 상태 흐름

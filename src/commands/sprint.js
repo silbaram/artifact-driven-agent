@@ -1,6 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import chalk from 'chalk';
+import inquirer from 'inquirer';
 import { getWorkspaceDir, isWorkspaceSetup, getTimestamp } from '../utils/files.js';
 
 /**
@@ -75,25 +76,37 @@ async function createSprint(sprintsDir) {
   const sprintName = `sprint-${nextNumber}`;
   const sprintPath = path.join(sprintsDir, sprintName);
 
-  // 템플릿 복사
-  const templatePath = path.join(sprintsDir, '_template');
-  if (!fs.existsSync(templatePath)) {
-    console.log(chalk.red('❌ 스프린트 템플릿이 없습니다.'));
-    process.exit(1);
-  }
+  // 스프린트 디렉토리 구조 생성
+  fs.ensureDirSync(path.join(sprintPath, 'tasks'));
+  fs.ensureDirSync(path.join(sprintPath, 'review-reports'));
+  fs.ensureDirSync(path.join(sprintPath, 'docs'));
 
-  fs.copySync(templatePath, sprintPath);
-
-  // meta.md 업데이트
+  // meta.md 생성 (간소화된 버전)
   const metaPath = path.join(sprintPath, 'meta.md');
-  let metaContent = fs.readFileSync(metaPath, 'utf-8');
   const today = new Date().toISOString().slice(0, 10);
 
-  metaContent = metaContent
-    .replace(/스프린트 번호 \| N/, `스프린트 번호 | ${nextNumber}`)
-    .replace(/상태 \| active \/ completed/, `상태 | active`)
-    .replace(/시작일 \| YYYY-MM-DD/, `시작일 | ${today}`)
-    .replace(/종료 예정 \| YYYY-MM-DD/, `종료 예정 | TBD`);
+  const metaContent = `# Sprint ${nextNumber} 메타정보
+
+| 항목 | 값 |
+|------|-----|
+| 스프린트 번호 | ${nextNumber} |
+| 상태 | active |
+| 시작일 | ${today} |
+| 종료 예정 | TBD |
+
+## Task 목록
+
+> Task는 \`ada sprint add task-NNN\` 명령어로 추가됩니다.
+> 추가된 Task는 아래에 자동으로 나열됩니다.
+
+(Task 없음)
+
+## 참고
+
+- Task 상태: BACKLOG → IN_DEV → DONE
+- 리뷰 결과: review-reports/ 참고
+- 최종 문서: docs/ 참고
+`;
 
   fs.writeFileSync(metaPath, metaContent);
 
@@ -160,6 +173,7 @@ async function addTasks(sprintsDir, taskIds) {
   }
 
   let addedCount = 0;
+  const addedTasks = [];
 
   for (const taskId of taskIds) {
     const taskFile = `${taskId}.md`;
@@ -180,13 +194,21 @@ async function addTasks(sprintsDir, taskIds) {
     fs.copyFileSync(sourcePath, destPath);
     addedCount++;
 
+    // Task 메타정보 파싱
+    const taskContent = fs.readFileSync(sourcePath, 'utf-8');
+    const taskInfo = parseTaskMetadata(taskContent, taskId);
+    addedTasks.push(taskInfo);
+
     console.log(chalk.green(`✅ ${taskId} 추가됨`));
+  }
+
+  // meta.md 업데이트
+  if (addedTasks.length > 0) {
+    updateSprintMeta(sprintPath, addedTasks);
   }
 
   console.log('');
   console.log(chalk.cyan(`📊 ${addedCount}개 Task가 ${activeSprint}에 추가되었습니다.`));
-  console.log('');
-  console.log(chalk.gray(`   meta.md를 업데이트하여 Task 목록을 갱신하세요.`));
   console.log('');
 }
 
@@ -218,6 +240,17 @@ async function closeSprint(sprintsDir, args = []) {
     .replace(/종료 예정 \| .*/, `종료 예정 | ${today}`);
 
   fs.writeFileSync(metaPath, metaContent);
+
+  // retrospective.md 생성
+  console.log('');
+  console.log(chalk.cyan('📝 스프린트 회고 작성'));
+  console.log(chalk.gray('━'.repeat(50)));
+
+  const retrospectiveData = await promptRetrospective(sprintPath);
+  createRetrospective(sprintPath, activeSprint, today, retrospectiveData);
+
+  console.log('');
+  console.log(chalk.green('✅ 회고 작성 완료'));
 
   // 작업 파일 정리
   if (!hasKeepAll) {
@@ -344,4 +377,163 @@ async function listSprints(sprintsDir) {
   }
 
   console.log('');
+}
+
+/**
+ * Task 파일에서 메타정보 파싱
+ */
+function parseTaskMetadata(content, taskId) {
+  const lines = content.split('\n');
+
+  // 제목 파싱 (첫 줄: # TASK-NNN: [Task 이름])
+  const titleMatch = lines[0].match(/^#\s*TASK-\d+:\s*(.+)$/);
+  const title = titleMatch ? titleMatch[1].trim() : '제목 없음';
+
+  // 메타 테이블 파싱
+  const statusMatch = content.match(/\|\s*상태\s*\|\s*([^\|]+)\s*\|/);
+  const priorityMatch = content.match(/\|\s*우선순위\s*\|\s*([^\|]+)\s*\|/);
+  const sizeMatch = content.match(/\|\s*크기\s*\|\s*([^\|]+)\s*\|/);
+
+  const status = statusMatch ? statusMatch[1].trim().split('/')[0].trim() : 'BACKLOG';
+  const priority = priorityMatch ? priorityMatch[1].trim().split('/')[0].trim() : 'P1';
+  const size = sizeMatch ? sizeMatch[1].trim().split('/')[0].trim() : 'M';
+
+  return {
+    id: taskId,
+    title,
+    status,
+    priority,
+    size
+  };
+}
+
+/**
+ * sprint meta.md 업데이트
+ */
+function updateSprintMeta(sprintPath, tasks) {
+  const metaPath = path.join(sprintPath, 'meta.md');
+  let metaContent = fs.readFileSync(metaPath, 'utf-8');
+
+  // Task 목록 섹션 찾기
+  const taskSectionRegex = /## Task 목록\s*\n[\s\S]*?\n\n(?=##|$)/;
+
+  // 새로운 Task 목록 생성
+  let taskListContent = '## Task 목록\n\n';
+  taskListContent += '| Task | 제목 | 상태 | 우선순위 | 크기 |\n';
+  taskListContent += '|------|------|:----:|:--------:|:----:|\n';
+
+  for (const task of tasks) {
+    taskListContent += `| ${task.id} | ${task.title} | ${task.status} | ${task.priority} | ${task.size} |\n`;
+  }
+
+  taskListContent += '\n';
+
+  // 기존 Task 목록 섹션 교체
+  if (metaContent.match(taskSectionRegex)) {
+    metaContent = metaContent.replace(taskSectionRegex, taskListContent);
+  } else {
+    // Task 목록 섹션이 없으면 참고 섹션 앞에 추가
+    metaContent = metaContent.replace(/## 참고/, taskListContent + '## 참고');
+  }
+
+  fs.writeFileSync(metaPath, metaContent);
+}
+
+/**
+ * 회고 작성 프롬프트
+ */
+async function promptRetrospective(sprintPath) {
+  // meta.md에서 Task 정보 읽기
+  const metaPath = path.join(sprintPath, 'meta.md');
+  const metaContent = fs.readFileSync(metaPath, 'utf-8');
+  
+  // Task 목록 파싱
+  const taskMatches = [...metaContent.matchAll(/\|\s*(task-\d+)\s*\|[^\|]*\|\s*(\w+)\s*\|/g)];
+  const completedTasks = taskMatches.filter(m => m[2] === 'DONE').map(m => m[1]);
+  const incompleteTasks = taskMatches.filter(m => m[2] !== 'DONE').map(m => m[1]);
+
+  console.log('');
+  console.log(chalk.white(`완료된 Task: ${completedTasks.length}개`));
+  console.log(chalk.white(`미완료 Task: ${incompleteTasks.length}개`));
+  console.log('');
+
+  const answers = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'keep',
+      message: '잘된 점 (Keep):',
+      default: '계획대로 진행됨'
+    },
+    {
+      type: 'input',
+      name: 'problem',
+      message: '개선할 점 (Problem):',
+      default: '-'
+    },
+    {
+      type: 'input',
+      name: 'try',
+      message: '시도할 것 (Try):',
+      default: '-'
+    }
+  ]);
+
+  return {
+    completedTasks,
+    incompleteTasks,
+    ...answers
+  };
+}
+
+/**
+ * retrospective.md 파일 생성
+ */
+function createRetrospective(sprintPath, sprintName, endDate, data) {
+  const retrospectivePath = path.join(sprintPath, 'retrospective.md');
+  
+  // 시작일은 meta.md에서 가져오기
+  const metaPath = path.join(sprintPath, 'meta.md');
+  const metaContent = fs.readFileSync(metaPath, 'utf-8');
+  const startDateMatch = metaContent.match(/시작일 \| ([\d-]+)/);
+  const startDate = startDateMatch ? startDateMatch[1] : endDate;
+
+  const sprintNumber = sprintName.replace('sprint-', '');
+  const totalTasks = data.completedTasks.length + data.incompleteTasks.length;
+  const completionRate = totalTasks > 0 ? Math.round((data.completedTasks.length / totalTasks) * 100) : 0;
+
+  const content = `# Sprint ${sprintNumber} 회고
+
+## 기간
+- 시작: ${startDate}
+- 종료: ${endDate}
+
+## 완료된 Task (${data.completedTasks.length}개)
+
+${data.completedTasks.map(t => `- ${t}`).join('\n') || '- (없음)'}
+
+## 미완료 Task (${data.incompleteTasks.length}개)
+
+${data.incompleteTasks.map(t => `- ${t}: 이월 필요`).join('\n') || '- (없음)'}
+
+## 잘된 점 (Keep)
+
+- ${data.keep}
+
+## 개선할 점 (Problem)
+
+- ${data.problem}
+
+## 시도할 것 (Try)
+
+- ${data.try}
+
+## 메트릭
+
+- 계획 Task 수: ${totalTasks}개
+- 완료 Task 수: ${data.completedTasks.length}개
+- 완료율: ${completionRate}%
+- 이월 Task 수: ${data.incompleteTasks.length}개
+`;
+
+  fs.writeFileSync(retrospectivePath, content);
 }
