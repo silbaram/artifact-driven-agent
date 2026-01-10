@@ -66,6 +66,8 @@ export async function setup(template) {
   fs.ensureDirSync(path.join(workspace, 'roles'));
   fs.ensureDirSync(path.join(workspace, 'artifacts'));
   fs.ensureDirSync(path.join(workspace, 'rules'));
+  fs.ensureDirSync(path.join(workspace, 'artifacts', 'backlog'));
+  fs.ensureDirSync(path.join(workspace, 'artifacts', 'sprints'));
   fs.ensureDirSync(path.join(workspace, 'artifacts', 'features', '_template'));
   fs.ensureDirSync(path.join(workspace, 'artifacts', 'rfc'));
   fs.ensureDirSync(path.join(workspace, 'artifacts', 'improvement-reports'));
