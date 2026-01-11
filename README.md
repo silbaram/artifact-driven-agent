@@ -60,6 +60,36 @@ ada --version
 ada --help
 ```
 
+### 업그레이드
+
+npm 패키지를 업데이트한 후, 기존 작업공간도 최신 버전으로 업그레이드해야 합니다.
+
+```bash
+# npm 패키지 업데이트
+npm install -g @silbaram/artifact-driven-agent@latest
+
+# 작업공간 상태 확인 (버전 불일치 경고 표시)
+ada status
+
+# 변경 사항 미리보기
+ada upgrade --dry-run
+
+# 안전 업그레이드 (백업 + 확인)
+ada upgrade
+
+# 강제 업그레이드 (확인 없이)
+ada upgrade --force
+
+# 문제 발생 시 롤백
+ada upgrade --rollback
+```
+
+**업그레이드 동작:**
+- ✅ `roles/`, `rules/` 디렉토리 업데이트 (프레임워크 파일)
+- ✅ 자동 백업 생성 (`.backups/upgrade-YYYYMMDD-HHMMSS/`)
+- ✅ 사용자 데이터 보존 (`backlog/`, `sprints/`, `decision.md`, `project.md`, `plan.md`)
+- ✅ 버전 추적 (`.ada-version` 파일)
+
 ---
 
 ## 🖥️ 빠른 시작
@@ -98,20 +128,32 @@ ada developer claude  # Task 구현 → DONE 상태로 변경
 ada reviewer claude   # 코드 리뷰 → review-reports/ 생성
 ```
 
-### 6. 스프린트 종료 및 정리
+### 6. 스프린트 종료 및 문서화
 
 ```bash
-# 기본: 작업 파일을 archive/ 폴더로 이동 (권장)
-ada sprint close
-
-# 옵션 1: 작업 파일 완전 삭제 (최종 문서만 유지)
-ada sprint close --clean
-
-# 옵션 2: 모든 파일 유지
-ada sprint close --keep-all
+# 스프린트 종료 및 정리
+ada sprint close              # 작업 파일을 archive/ 폴더로 이동 (권장)
+ada sprint close --clean      # 작업 파일 완전 삭제 (최종 문서만 유지)
+ada sprint close --keep-all   # 모든 파일 유지
 
 # 문서 작성
-ada documenter claude          # docs/ 디렉토리에 최종 문서 생성
+ada documenter claude         # Release Notes, API Changelog 등 생성
+```
+
+### 7. (선택) 프로젝트 문서 관리
+
+```bash
+# 문서 사이트 초기화 (최초 1회)
+ada docs init
+
+# 문서 생성/업데이트
+ada documenter claude         # Documenter가 docs/ 업데이트
+
+# 로컬 미리보기
+ada docs serve
+
+# GitHub Pages 배포
+ada docs publish
 ```
 
 **종료 후 구조 (기본):**
@@ -219,7 +261,10 @@ ai-dev-team/
 |--------|------|
 | `ada` | 대화형 모드 |
 | `ada setup [template]` | 템플릿 세팅 (web, lib, game, cli) |
-| `ada status` | 상태 확인 |
+| `ada status` | 상태 확인 (버전 체크 포함) |
+| `ada upgrade` | 작업공간을 최신 버전으로 업그레이드 |
+| `ada upgrade --dry-run` | 변경 사항 미리보기 |
+| `ada upgrade --rollback` | 이전 백업으로 롤백 |
 | `ada validate [doc]` | 문서 검증 |
 | `ada reset [-f]` | 초기화 |
 
@@ -268,6 +313,29 @@ ada logs
 ada logs [session-id]
 ```
 
+### 문서 관리
+
+```bash
+# 문서 구조 초기화 (MkDocs/Jekyll)
+ada docs init
+ada docs init -g mkdocs    # MkDocs 템플릿
+ada docs init -g jekyll    # Jekyll 템플릿
+
+# 문서 생성 (Documenter 역할 실행 안내)
+ada docs generate
+
+# 로컬 문서 서버 실행
+ada docs serve
+
+# GitHub Pages 배포
+ada docs publish
+```
+
+**참고:** 실제 문서 내용 생성은 Documenter 역할로 수행합니다:
+```bash
+ada documenter claude
+```
+
 ---
 
 ## 🔄 워크플로우
@@ -294,9 +362,15 @@ ada logs [session-id]
    → ada sprint close
 
 6. Documenter: 문서 작성
-   → docs/*.md 생성 (API Changelog, Release Notes 등)
+   → ada documenter claude
+   → sprints/sprint-N/docs/*.md 생성 (Release Notes, API Changelog 등)
+   → (선택) 프로젝트 docs/ 업데이트 (문서 사이트용)
 
-7. 다음 스프린트 시작
+7. (선택) 문서 사이트 배포
+   → ada docs serve (로컬 미리보기)
+   → ada docs publish (GitHub Pages 배포)
+
+8. 다음 스프린트 시작
    → ada sprint create
 ```
 

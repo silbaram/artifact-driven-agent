@@ -1,9 +1,11 @@
 import fs from 'fs-extra';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'node:module';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const require = createRequire(import.meta.url);
 
 /**
  * 패키지 루트 디렉토리 반환
@@ -116,19 +118,84 @@ export function isWorkspaceSetup() {
  */
 export function copyDirMerge(src, dest) {
   if (!fs.existsSync(src)) return;
-  
+
   fs.ensureDirSync(dest);
   const items = fs.readdirSync(src);
-  
+
   for (const item of items) {
     const srcPath = path.join(src, item);
     const destPath = path.join(dest, item);
     const stat = fs.statSync(srcPath);
-    
+
     if (stat.isDirectory()) {
       copyDirMerge(srcPath, destPath);
     } else {
       fs.copyFileSync(srcPath, destPath);
     }
   }
+}
+
+/**
+ * 버전 파일 경로 반환
+ */
+export function getVersionFile() {
+  return path.join(getWorkspaceDir(), '.ada-version');
+}
+
+/**
+ * 백업 디렉토리 경로 반환
+ */
+export function getBackupDir() {
+  return path.join(getWorkspaceDir(), '.backups');
+}
+
+/**
+ * 패키지 버전 반환
+ */
+export function getPackageVersion() {
+  const packageJson = require(path.join(getPackageRoot(), 'package.json'));
+  return packageJson.version;
+}
+
+/**
+ * 작업공간 버전 정보 읽기
+ */
+export function readVersion() {
+  const versionFile = getVersionFile();
+  if (!fs.existsSync(versionFile)) {
+    return null;
+  }
+  try {
+    const content = fs.readFileSync(versionFile, 'utf-8');
+    return JSON.parse(content);
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * 작업공간 버전 정보 쓰기
+ */
+export function writeVersion(versionInfo) {
+  const versionFile = getVersionFile();
+  fs.writeFileSync(versionFile, JSON.stringify(versionInfo, null, 2));
+}
+
+/**
+ * 버전 비교 (semver 형식)
+ * @returns {number} a > b이면 1, a < b이면 -1, 같으면 0
+ */
+export function compareVersions(a, b) {
+  const aParts = a.split('.').map(Number);
+  const bParts = b.split('.').map(Number);
+
+  for (let i = 0; i < 3; i++) {
+    const aVal = aParts[i] || 0;
+    const bVal = bParts[i] || 0;
+
+    if (aVal > bVal) return 1;
+    if (aVal < bVal) return -1;
+  }
+
+  return 0;
 }

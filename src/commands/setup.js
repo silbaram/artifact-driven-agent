@@ -7,7 +7,9 @@ import {
   getWorkspaceDir,
   getCurrentTemplateFile,
   getAvailableTemplates,
-  copyDirMerge
+  copyDirMerge,
+  getPackageVersion,
+  writeVersion
 } from '../utils/files.js';
 
 export async function setup(template) {
@@ -104,6 +106,16 @@ export async function setup(template) {
 
   // 현재 템플릿 저장
   fs.writeFileSync(getCurrentTemplateFile(), template);
+
+  // 버전 정보 저장
+  const packageVersion = getPackageVersion();
+  const versionInfo = {
+    packageVersion: packageVersion,
+    workspaceVersion: packageVersion,
+    template: template,
+    lastUpgrade: new Date().toISOString()
+  };
+  writeVersion(versionInfo);
 
   // 결과 출력
   console.log('');
