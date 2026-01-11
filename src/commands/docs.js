@@ -343,7 +343,21 @@ async function serveDocs(options) {
     });
 
     mkdocs.on('close', (code) => {
-      if (code !== 0 && code !== null) {
+      if (code === 127) {
+        // command not found
+        console.log('');
+        console.log(chalk.red('❌ MkDocs가 설치되어 있지 않습니다.'));
+        console.log('');
+        console.log(chalk.yellow('💡 다음 명령어로 설치하세요:'));
+        console.log('');
+        console.log(chalk.white('  pip install mkdocs mkdocs-material'));
+        console.log('');
+        console.log(chalk.gray('또는 Python 3.x가 설치되지 않았다면:'));
+        console.log(chalk.gray('  brew install python'));
+        console.log(chalk.gray('  pip3 install mkdocs mkdocs-material'));
+        console.log('');
+        process.exit(1);
+      } else if (code !== 0 && code !== null) {
         console.log('');
         console.log(chalk.yellow(`⚠️  서버가 종료되었습니다 (코드: ${code})`));
       }
@@ -373,7 +387,18 @@ async function serveDocs(options) {
     });
 
     jekyll.on('close', (code) => {
-      if (code !== 0 && code !== null) {
+      if (code === 127) {
+        // command not found
+        console.log('');
+        console.log(chalk.red('❌ Jekyll이 설치되어 있지 않습니다.'));
+        console.log('');
+        console.log(chalk.yellow('💡 다음 명령어로 설치하세요:'));
+        console.log('');
+        console.log(chalk.white('  gem install bundler jekyll'));
+        console.log(chalk.white('  cd docs && bundle install'));
+        console.log('');
+        process.exit(1);
+      } else if (code !== 0 && code !== null) {
         console.log('');
         console.log(chalk.yellow(`⚠️  서버가 종료되었습니다 (코드: ${code})`));
       }
