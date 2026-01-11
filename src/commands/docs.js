@@ -2,6 +2,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
+import { spawn } from 'child_process';
 import { getPackageRoot, getWorkspaceDir, isWorkspaceSetup } from '../utils/files.js';
 
 /**
@@ -316,21 +317,71 @@ async function serveDocs(options) {
   }
 
   const isMkDocs = fs.existsSync(path.join(docsDir, 'mkdocs.yml'));
+  const isJekyll = fs.existsSync(path.join(docsDir, '_config.yml'));
 
   if (isMkDocs) {
-    console.log(chalk.yellow('다음 명령어를 실행하세요:'));
+    console.log(chalk.cyan('📘 MkDocs 서버 시작 중...'));
+    console.log(chalk.gray('   문서: http://127.0.0.1:8000'));
+    console.log(chalk.gray('   종료: Ctrl+C'));
     console.log('');
-    console.log(chalk.white('  cd docs'));
-    console.log(chalk.white('  mkdocs serve'));
+
+    // mkdocs serve 실행
+    const mkdocs = spawn('mkdocs', ['serve'], {
+      cwd: docsDir,
+      stdio: 'inherit',
+      shell: true
+    });
+
+    mkdocs.on('error', (err) => {
+      console.log('');
+      console.log(chalk.red('❌ MkDocs 실행 실패'));
+      console.log(chalk.yellow('💡 MkDocs가 설치되어 있는지 확인하세요:'));
+      console.log('');
+      console.log(chalk.white('  pip install mkdocs mkdocs-material'));
+      console.log('');
+      process.exit(1);
+    });
+
+    mkdocs.on('close', (code) => {
+      if (code !== 0 && code !== null) {
+        console.log('');
+        console.log(chalk.yellow(`⚠️  서버가 종료되었습니다 (코드: ${code})`));
+      }
+    });
+
+  } else if (isJekyll) {
+    console.log(chalk.cyan('📗 Jekyll 서버 시작 중...'));
+    console.log(chalk.gray('   종료: Ctrl+C'));
     console.log('');
-    console.log(chalk.gray('문서는 http://127.0.0.1:8000 에서 확인할 수 있습니다.'));
+
+    // bundle exec jekyll serve 실행
+    const jekyll = spawn('bundle', ['exec', 'jekyll', 'serve'], {
+      cwd: docsDir,
+      stdio: 'inherit',
+      shell: true
+    });
+
+    jekyll.on('error', (err) => {
+      console.log('');
+      console.log(chalk.red('❌ Jekyll 실행 실패'));
+      console.log(chalk.yellow('💡 Jekyll이 설치되어 있는지 확인하세요:'));
+      console.log('');
+      console.log(chalk.white('  gem install bundler jekyll'));
+      console.log(chalk.white('  cd docs && bundle install'));
+      console.log('');
+      process.exit(1);
+    });
+
+    jekyll.on('close', (code) => {
+      if (code !== 0 && code !== null) {
+        console.log('');
+        console.log(chalk.yellow(`⚠️  서버가 종료되었습니다 (코드: ${code})`));
+      }
+    });
+
   } else {
-    console.log(chalk.yellow('다음 명령어를 실행하세요:'));
-    console.log('');
-    console.log(chalk.white('  cd docs'));
-    console.log(chalk.white('  bundle exec jekyll serve'));
+    console.log(chalk.yellow('⚠️  문서 생성기를 인식할 수 없습니다.'));
+    console.log(chalk.gray('   mkdocs.yml 또는 _config.yml 파일이 필요합니다.'));
     console.log('');
   }
-
-  console.log('');
 }

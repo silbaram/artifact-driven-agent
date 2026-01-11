@@ -25,7 +25,7 @@ export async function upgrade(options = {}) {
   }
 
   const packageVersion = getPackageVersion();
-  const workspaceVersionInfo = readVersion();
+  let workspaceVersionInfo = readVersion();
   const currentTemplate = getCurrentTemplate();
 
   if (!workspaceVersionInfo) {
