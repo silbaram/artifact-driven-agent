@@ -9,7 +9,9 @@ import { sessions } from '../src/commands/sessions.js';
 import { logs } from '../src/commands/logs.js';
 import { run } from '../src/commands/run.js';
 import { interactive } from '../src/commands/interactive.js';
+import { upgrade } from '../src/commands/upgrade.js';
 import sprint from '../src/commands/sprint.js';
+import docs from '../src/commands/docs.js';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -38,6 +40,15 @@ program
   .option('-f, --force', '확인 없이 강제 초기화')
   .action(reset);
 
+// Upgrade command
+program
+  .command('upgrade')
+  .description('작업공간을 최신 버전으로 업그레이드')
+  .option('-f, --force', '확인 없이 강제 업그레이드')
+  .option('--dry-run', '변경 사항 미리보기 (실제 변경 없음)')
+  .option('--rollback', '이전 백업으로 롤백')
+  .action(upgrade);
+
 // Validate command
 program
   .command('validate [doc]')
@@ -49,6 +60,8 @@ program
   .command('sessions')
   .description('AI 실행 세션 목록')
   .option('-w, --watch', '실시간 모니터링 모드')
+  .option('-c, --clean', '완료된 세션 정리')
+  .option('--days <days>', '지정한 일수보다 오래된 세션만 정리 (기본: 7일)', '7')
   .action(sessions);
 
 // Logs command
@@ -63,6 +76,13 @@ program
   .description('스프린트 관리 (create, add, close, list)')
   .action(sprint);
 
+// Docs command
+program
+  .command('docs <action>')
+  .description('문서 관리 (init, generate, publish, serve)')
+  .option('-g, --generator <type>', '문서 생성기 (mkdocs, jekyll)')
+  .action(docs);
+
 // Run command
 program
   .command('run <role> <tool>')
@@ -75,7 +95,7 @@ const args = process.argv.slice(2);
 if (args.length === 0) {
   // 인자 없으면 대화형 모드
   interactive();
-} else if (args.length === 2 && !args[0].startsWith('-') && !['setup', 'status', 'reset', 'validate', 'sessions', 'logs', 'run', 'sprint'].includes(args[0])) {
+} else if (args.length === 2 && !args[0].startsWith('-') && !['setup', 'status', 'reset', 'upgrade', 'validate', 'sessions', 'logs', 'run', 'sprint', 'docs'].includes(args[0])) {
   // 두 개의 인자가 명령어가 아니면 role tool로 간주
   run(args[0], args[1]);
 } else {

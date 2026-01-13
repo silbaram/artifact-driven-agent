@@ -2,7 +2,7 @@
 
 **문서 기반 멀티 AI 에이전트 개발 프레임워크**
 
-4개 핵심 역할(Planner, Developer, Reviewer, Documenter)이 스프린트 단위로 협업하여 안정적인 개발 워크플로우를 만듭니다.
+5개 핵심 역할(Planner, Improver, Developer, Reviewer, Documenter)이 스프린트 단위로 협업하여 안정적인 개발 워크플로우를 만듭니다.
 
 ## 🎯 목표
 
@@ -60,6 +60,36 @@ ada --version
 ada --help
 ```
 
+### 업그레이드
+
+npm 패키지를 업데이트한 후, 기존 작업공간도 최신 버전으로 업그레이드해야 합니다.
+
+```bash
+# npm 패키지 업데이트
+npm install -g @silbaram/artifact-driven-agent@latest
+
+# 작업공간 상태 확인 (버전 불일치 경고 표시)
+ada status
+
+# 변경 사항 미리보기
+ada upgrade --dry-run
+
+# 안전 업그레이드 (백업 + 확인)
+ada upgrade
+
+# 강제 업그레이드 (확인 없이)
+ada upgrade --force
+
+# 문제 발생 시 롤백
+ada upgrade --rollback
+```
+
+**업그레이드 동작:**
+- ✅ `roles/`, `rules/` 디렉토리 업데이트 (프레임워크 파일)
+- ✅ 자동 백업 생성 (`.backups/upgrade-YYYYMMDD-HHMMSS/`)
+- ✅ 사용자 데이터 보존 (`backlog/`, `sprints/`, `decision.md`, `project.md`, `plan.md`)
+- ✅ 버전 추적 (`.ada-version` 파일)
+
 ---
 
 ## 🖥️ 빠른 시작
@@ -98,22 +128,54 @@ ada developer claude  # Task 구현 → DONE 상태로 변경
 ada reviewer claude   # 코드 리뷰 → review-reports/ 생성
 ```
 
-### 6. 스프린트 종료
+### 6. 스프린트 종료 및 문서화
 
 ```bash
-ada sprint close               # 스프린트 종료
-ada documenter claude          # 문서 작성
+# 스프린트 종료 및 정리
+ada sprint close              # 작업 파일을 archive/ 폴더로 이동 (권장)
+ada sprint close --clean      # 작업 파일 완전 삭제 (최종 문서만 유지)
+ada sprint close --keep-all   # 모든 파일 유지
+
+# 문서 작성
+ada documenter claude         # Release Notes, API Changelog 등 생성
+```
+
+### 7. (선택) 프로젝트 문서 관리
+
+```bash
+# 문서 사이트 초기화 (최초 1회)
+ada docs init
+
+# 문서 생성/업데이트
+ada documenter claude         # Documenter가 docs/ 업데이트
+
+# 로컬 미리보기
+ada docs serve
+
+# GitHub Pages 배포
+ada docs publish
+```
+
+**종료 후 구조 (기본):**
+```
+sprints/sprint-N/
+├── meta.md                    # 스프린트 정보
+├── docs/                      # 최종 문서 ✅
+└── archive/                   # 작업 과정 보관
+    ├── tasks/
+    └── review-reports/
 ```
 
 ---
 
 ## 👥 역할 시스템
 
-### 핵심 역할 (4개) - 모든 프로젝트 필수
+### 핵심 역할 (5개) - 모든 프로젝트 필수
 
 | 역할 | 책임 | 산출물 |
 |------|------|--------|
-| **Planner** | 요구사항 수집, Task 분해 | plan.md, backlog/*.md |
+| **Planner** | 신규 기능 요구사항 수집, Task 분해 | plan.md, backlog/*.md |
+| **Improver** | 기존 기능 개선 분석 및 기획 | improvement-reports/*.md, backlog/*.md |
 | **Developer** | 코드 구현, Task 완료 | 소스 코드, Task 파일 업데이트 |
 | **Reviewer** | 코드 리뷰, 품질 판정 | review-reports/*.md |
 | **Documenter** | 스프린트 완료 시 문서 작성 | API Changelog, Release Notes, User Guide |
@@ -143,7 +205,7 @@ artifact-driven-agent/
 │       ├── files.js
 │       └── sessionState.js
 ├── core/                   # 범용 핵심
-│   ├── roles/              # 5개 역할
+│   ├── roles/              # 6개 역할
 │   ├── artifacts/          # 산출물 템플릿
 │   │   └── sprints/
 │   │       └── _template/  # 스프린트 템플릿
@@ -199,7 +261,10 @@ ai-dev-team/
 |--------|------|
 | `ada` | 대화형 모드 |
 | `ada setup [template]` | 템플릿 세팅 (web, lib, game, cli) |
-| `ada status` | 상태 확인 |
+| `ada status` | 상태 확인 (버전 체크 포함) |
+| `ada upgrade` | 작업공간을 최신 버전으로 업그레이드 |
+| `ada upgrade --dry-run` | 변경 사항 미리보기 |
+| `ada upgrade --rollback` | 이전 백업으로 롤백 |
 | `ada validate [doc]` | 문서 검증 |
 | `ada reset [-f]` | 초기화 |
 
@@ -209,7 +274,9 @@ ai-dev-team/
 |--------|------|
 | `ada sprint create` | 새 스프린트 생성 |
 | `ada sprint add task-001 ...` | Task 추가 |
-| `ada sprint close` | 현재 스프린트 종료 |
+| `ada sprint close` | 스프린트 종료 (작업 파일 archive/) |
+| `ada sprint close --clean` | 스프린트 종료 (작업 파일 삭제) |
+| `ada sprint close --keep-all` | 스프린트 종료 (파일 유지) |
 | `ada sprint list` | 스프린트 목록 |
 
 ### AI 에이전트 실행
@@ -222,7 +289,8 @@ ada run <role> <tool>
 ada <role> <tool>
 
 # 예시
-ada planner claude
+ada planner claude      # 신규 기능 기획
+ada improver claude     # 기존 기능 개선 기획
 ada developer codex
 ada reviewer gemini
 ada documenter claude
@@ -243,6 +311,29 @@ ada sessions -w
 # 세션 로그 확인
 ada logs
 ada logs [session-id]
+```
+
+### 문서 관리
+
+```bash
+# 문서 구조 초기화 (MkDocs/Jekyll)
+ada docs init
+ada docs init -g mkdocs    # MkDocs 템플릿
+ada docs init -g jekyll    # Jekyll 템플릿
+
+# 문서 생성 (Documenter 역할 실행 안내)
+ada docs generate
+
+# 로컬 문서 서버 실행
+ada docs serve
+
+# GitHub Pages 배포
+ada docs publish
+```
+
+**참고:** 실제 문서 내용 생성은 Documenter 역할로 수행합니다:
+```bash
+ada documenter claude
 ```
 
 ---
@@ -271,9 +362,15 @@ ada logs [session-id]
    → ada sprint close
 
 6. Documenter: 문서 작성
-   → docs/*.md 생성 (API Changelog, Release Notes 등)
+   → ada documenter claude
+   → sprints/sprint-N/docs/*.md 생성 (Release Notes, API Changelog 등)
+   → (선택) 프로젝트 docs/ 업데이트 (문서 사이트용)
 
-7. 다음 스프린트 시작
+7. (선택) 문서 사이트 배포
+   → ada docs serve (로컬 미리보기)
+   → ada docs publish (GitHub Pages 배포)
+
+8. 다음 스프린트 시작
    → ada sprint create
 ```
 
@@ -283,11 +380,23 @@ ada logs [session-id]
 0. Analyzer: 코드베이스 분석
    → project.md 역생성
 
-1. Planner: 추가 기능 기획
-   → plan.md 업데이트
-   → backlog/*.md 생성
+1. [분기점]
 
-2. 이후 신규 프로젝트와 동일
+   A) 신규 기능 추가 시:
+      Planner: 추가 기능 기획
+      → plan.md 업데이트
+      → backlog/*.md 생성
+
+   B) 기존 기능 개선 시:
+      Improver: 개선 분석 및 기획
+      → improvement-reports/IMP-NNN.md 생성
+      → backlog/*.md 생성
+
+2. 사용자: 스프린트 생성
+   → ada sprint create
+   → ada sprint add task-001 task-002
+
+3. 이후 신규 프로젝트와 동일 (Developer → Reviewer → Documenter)
 ```
 
 ### Task 상태 흐름
@@ -435,9 +544,10 @@ ai-dev-team/.sessions/.ada-status.json
 - 역할 간 blocking 문제 (backend ↔ frontend)
 
 **현재 (v0.2.x):**
-- 4개 핵심 역할 (planner, developer, reviewer, documenter)
+- 5개 핵심 역할 (planner, improver, developer, reviewer, documenter)
 - 사용자 직접 스프린트 관리 (CLI 명령어)
 - 단순화된 워크플로우
+- 신규 기능(Planner)과 개선(Improver) 분리
 
 ### 스프린트 기반 구조
 
@@ -451,13 +561,14 @@ ai-dev-team/.sessions/.ada-status.json
 - Task별 개별 파일 (task-NNN.md)
 - 리뷰/문서도 Task별 분리
 - 완료된 스프린트는 불변 (이력 보존)
+- 종료 시 작업 파일 자동 정리 (archive/ 또는 삭제)
 
 ### 자동화 개선
 
 **추가된 CLI 명령어:**
 - `ada sprint create` - 스프린트 자동 생성
 - `ada sprint add` - Task 자동 추가
-- `ada sprint close` - 스프린트 종료 및 회고 템플릿 생성
+- `ada sprint close` - 스프린트 종료 및 작업 파일 정리 (archive/clean/keep-all 옵션)
 - `ada sprint list` - 스프린트 목록 확인
 
 ---

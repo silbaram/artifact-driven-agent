@@ -7,7 +7,9 @@ import {
   getWorkspaceDir,
   getCurrentTemplateFile,
   getAvailableTemplates,
-  copyDirMerge
+  copyDirMerge,
+  getPackageVersion,
+  writeVersion
 } from '../utils/files.js';
 
 export async function setup(template) {
@@ -66,8 +68,11 @@ export async function setup(template) {
   fs.ensureDirSync(path.join(workspace, 'roles'));
   fs.ensureDirSync(path.join(workspace, 'artifacts'));
   fs.ensureDirSync(path.join(workspace, 'rules'));
+  fs.ensureDirSync(path.join(workspace, 'artifacts', 'backlog'));
+  fs.ensureDirSync(path.join(workspace, 'artifacts', 'sprints'));
   fs.ensureDirSync(path.join(workspace, 'artifacts', 'features', '_template'));
   fs.ensureDirSync(path.join(workspace, 'artifacts', 'rfc'));
+  fs.ensureDirSync(path.join(workspace, 'artifacts', 'improvement-reports'));
 
   // Core 복사
   console.log(chalk.gray('📁 Core 파일 복사 중...'));
@@ -93,8 +98,24 @@ export async function setup(template) {
     fs.copyFileSync(rfcTemplateFile, path.join(workspace, 'artifacts', 'rfc', 'RFC-0000-template.md'));
   }
 
+  // Improvement Reports 템플릿 복사
+  const improvementTemplateFile = path.join(packageRoot, 'ai-dev-team', 'artifacts', 'improvement-reports', 'IMP-0000-template.md');
+  if (fs.existsSync(improvementTemplateFile)) {
+    fs.copyFileSync(improvementTemplateFile, path.join(workspace, 'artifacts', 'improvement-reports', 'IMP-0000-template.md'));
+  }
+
   // 현재 템플릿 저장
   fs.writeFileSync(getCurrentTemplateFile(), template);
+
+  // 버전 정보 저장
+  const packageVersion = getPackageVersion();
+  const versionInfo = {
+    packageVersion: packageVersion,
+    workspaceVersion: packageVersion,
+    template: template,
+    lastUpgrade: new Date().toISOString()
+  };
+  writeVersion(versionInfo);
 
   // 결과 출력
   console.log('');

@@ -23,6 +23,12 @@ export async function sessions(options = {}) {
     return watchSessions();
   }
 
+  // Clean 모드
+  if (options.clean) {
+    const days = parseInt(options.days || '7', 10);
+    return cleanupCompletedSessions(days);
+  }
+
   const sessionsDir = getSessionsDir();
 
   // 좀비 세션 정리 (60분 이상 된 세션)
@@ -30,19 +36,19 @@ export async function sessions(options = {}) {
 
   console.log('');
   console.log(chalk.cyan('━'.repeat(60)));
-  console.log(chalk.cyan.bold('?? 세션 상태'));
+  console.log(chalk.cyan.bold('세션 상태'));
   console.log(chalk.cyan('━'.repeat(60)));
   console.log('');
 
   if (removedCount > 0) {
-    console.log(chalk.yellow(`?? 좀비 세션 ${removedCount}개 정리됨 (60분 이상 경과)`));
+    console.log(chalk.yellow(`좀비 세션 ${removedCount}개 정리됨 (60분 이상 경과)`));
     console.log('');
   }
 
   // 1. 실시간 활성 세션 표시
   const activeSessions = getActiveSessions();
   if (activeSessions.length > 0) {
-    console.log(chalk.yellow.bold('?? 활성 세션 (실시간)'));
+    console.log(chalk.yellow.bold('활성 세션 (실시간)'));
     console.log('');
     console.log(chalk.gray('  역할        도구      시작 시간           상태'));
     console.log(chalk.gray('  ' + '─'.repeat(56)));
@@ -52,7 +58,7 @@ export async function sessions(options = {}) {
       const tool = (session.tool || '-').padEnd(8);
       const startTime = new Date(session.startedAt).toLocaleString('ko-KR');
       const status = session.status || 'active';
-      const statusIcon = status === 'active' ? '??' : '??';
+      const statusIcon = status === 'active' ? '+' : '-';
 
       console.log(`  ${role}  ${tool}  ${startTime}  ${statusIcon} ${status}`);
     });
@@ -65,7 +71,7 @@ export async function sessions(options = {}) {
   // 2. 대기 중인 질문 표시
   const pendingQuestions = getPendingQuestions();
   if (pendingQuestions.length > 0) {
-    console.log(chalk.yellow.bold('??  대기 질문'));
+    console.log(chalk.yellow.bold('대기 질문'));
     console.log('');
 
     pendingQuestions.forEach(q => {
@@ -86,12 +92,12 @@ export async function sessions(options = {}) {
   );
 
   if (activeTasks.length > 0) {
-    console.log(chalk.cyan.bold('?? 진행 중인 Task'));
+    console.log(chalk.cyan.bold('진행 중인 Task'));
     console.log('');
 
     activeTasks.forEach(([taskId, info]) => {
       const progress = info.progress || 0;
-      const progressBar = '?'.repeat(Math.floor(progress / 10)) + '?'.repeat(10 - Math.floor(progress / 10));
+      const progressBar = '#'.repeat(Math.floor(progress / 10)) + '-'.repeat(10 - Math.floor(progress / 10));
       console.log(`  ${taskId}: ${progressBar} ${progress}% (${info.status})`);
       if (info.assignee) {
         console.log(chalk.gray(`    담당: ${info.assignee}`));
@@ -124,7 +130,7 @@ export async function sessions(options = {}) {
     return;
   }
 
-  console.log(chalk.cyan.bold('?? 최근 세션 기록'));
+  console.log(chalk.cyan.bold('최근 세션 기록'));
   console.log('');
   console.log(chalk.gray('  세션 ID                      역할        도구      상태'));
   console.log(chalk.gray('  ' + '─'.repeat(56)));
@@ -233,7 +239,7 @@ async function watchSessions() {
 
     console.log('');
     console.log(chalk.yellow('━'.repeat(60)));
-    console.log(chalk.yellow.bold('?? 질문 응답 필요'));
+    console.log(chalk.yellow.bold('질문 응답 필요'));
     console.log(chalk.yellow('━'.repeat(60)));
     console.log(chalk.white(`  ID: ${currentQuestion.id}`));
     console.log(chalk.white(`  요청: ${currentQuestion.from} → ${currentQuestion.to}`));
@@ -266,7 +272,9 @@ async function watchSessions() {
 
     answerQuestion(currentQuestion.id, answer);
 
-    console.log(chalk.green(`  저장 완료: ${currentQuestion.id}`));
+    // 처리 완료 메시지
+    console.log(chalk.green(`  ✓ 저장 완료: ${currentQuestion.id}`));
+    console.log(chalk.gray(`  ✓ 관련 알림 읽음 처리됨`));
     console.log('');
   }
 
@@ -295,8 +303,8 @@ async function watchSessions() {
     // 헤더
     console.log('');
     console.log(chalk.cyan('┌' + '─'.repeat(78) + '┐'));
-    console.log(chalk.cyan('│') + chalk.bold.white(' ?? Manager Watch Mode'.padEnd(78)) + chalk.cyan('│'));
-    console.log(chalk.cyan('│') + chalk.gray(` ? ${timeString}`.padEnd(78)) + chalk.cyan('│'));
+    console.log(chalk.cyan('│') + chalk.bold.white(' Manager Watch Mode'.padEnd(78)) + chalk.cyan('│'));
+    console.log(chalk.cyan('│') + chalk.gray(` 시간: ${timeString}`.padEnd(78)) + chalk.cyan('│'));
     console.log(chalk.cyan('└' + '─'.repeat(78) + '┘'));
     console.log('');
 
@@ -308,7 +316,7 @@ async function watchSessions() {
       const notifications = status.notifications || [];
 
       // 통계 패널
-      console.log(chalk.bgBlue.white.bold(' ?? 통계 '));
+      console.log(chalk.bgBlue.white.bold(' 통계 '));
       console.log('');
       console.log(chalk.white(`  활성 세션: ${chalk.yellow(activeSessions.length)}개`));
       console.log(chalk.white(`  대기 질문: ${pendingQuestions.length > 0 ? chalk.red(pendingQuestions.length) : chalk.green('0')}개`));
@@ -322,13 +330,13 @@ async function watchSessions() {
 
       // 활성 세션
       if (activeSessions.length > 0) {
-        console.log(chalk.bgGreen.black.bold(' ?? 활성 세션 '));
+        console.log(chalk.bgGreen.black.bold(' 활성 세션 '));
         console.log('');
 
         activeSessions.forEach((session, index) => {
           const startTime = new Date(session.startedAt);
           const duration = Math.floor((now - startTime) / 1000 / 60); // 분
-          const statusIcon = session.status === 'active' ? '??' : '??';
+          const statusIcon = session.status === 'active' ? '+' : '-';
 
           console.log(chalk.white(`  ${index + 1}. ${statusIcon} ${chalk.bold(session.role)}`));
           console.log(chalk.gray(`     도구: ${session.tool}`));
@@ -346,7 +354,7 @@ async function watchSessions() {
 
       // 대기 질문 (강조)
       if (pendingQuestions.length > 0) {
-        console.log(chalk.bgYellow.black.bold(' ??  대기 질문 '));
+        console.log(chalk.bgYellow.black.bold(' 대기 질문 '));
         console.log('');
 
         pendingQuestions.slice(0, 3).forEach((q, index) => {
@@ -374,14 +382,14 @@ async function watchSessions() {
 
       // 진행 중인 Task
       if (activeTasks.length > 0) {
-        console.log(chalk.bgCyan.black.bold(' ?? 진행 중인 Task '));
+        console.log(chalk.bgCyan.black.bold(' 진행 중인 Task '));
         console.log('');
 
         activeTasks.slice(0, 5).forEach((taskId, index) => {
           const task = taskProgress[taskId];
           const progress = task.progress || 0;
           const bars = Math.floor(progress / 5);
-          const progressBar = '?'.repeat(bars) + '?'.repeat(20 - bars);
+          const progressBar = '#'.repeat(bars) + '-'.repeat(20 - bars);
 
           const statusColors = {
             'IN_DEV': chalk.blue,
@@ -415,19 +423,19 @@ async function watchSessions() {
       // 최근 알림
       const recentNotifications = notifications.slice(-3).reverse();
       if (recentNotifications.length > 0) {
-        console.log(chalk.bgMagenta.white.bold(' ?? 최근 알림 '));
+        console.log(chalk.bgMagenta.white.bold(' 최근 알림 '));
         console.log('');
 
         recentNotifications.forEach((notif, index) => {
           const typeIcons = {
-            'info': '??',
-            'warning': '??',
-            'error': '?',
+            'info': 'i',
+            'warning': '!',
+            'error': 'x',
             'question': '?',
-            'complete': '?'
+            'complete': 'v'
           };
 
-          const icon = typeIcons[notif.type] || '??';
+          const icon = typeIcons[notif.type] || '?';
           const readStatus = notif.read ? chalk.gray('[읽음]') : chalk.yellow('[안읽음]');
 
           console.log(chalk.white(`  ${icon} ${readStatus} ${notif.message}`));
@@ -521,7 +529,7 @@ async function watchSessions() {
     disableKeypressHandling();
 
     console.log('');
-    console.log(chalk.cyan('?? Watch 모드를 종료합니다.'));
+    console.log(chalk.cyan('Watch 모드를 종료합니다.'));
     console.log('');
     process.exit(0);
   }
@@ -531,7 +539,7 @@ async function watchSessions() {
     console.clear();
     console.log('');
     console.log(chalk.cyan('┌' + '─'.repeat(78) + '┐'));
-    console.log(chalk.cyan('│') + chalk.bold.white(' ?? Watch 모드 도움말'.padEnd(78)) + chalk.cyan('│'));
+    console.log(chalk.cyan('│') + chalk.bold.white(' Watch 모드 도움말'.padEnd(78)) + chalk.cyan('│'));
     console.log(chalk.cyan('└' + '─'.repeat(78) + '┘'));
     console.log('');
     console.log(chalk.white('  Watch 모드는 실시간으로 세션 상태를 모니터링합니다.'));
@@ -563,4 +571,94 @@ async function watchSessions() {
   // 프로세스 종료 처리
   process.on('SIGINT', cleanup);
   process.on('SIGTERM', cleanup);
+}
+
+/**
+ * 완료된 세션 정리
+ * @param {number} days - 지정한 일수보다 오래된 세션만 정리
+ */
+async function cleanupCompletedSessions(days = 7) {
+  const sessionsDir = getSessionsDir();
+
+  if (!fs.existsSync(sessionsDir)) {
+    console.log(chalk.yellow('⚠️  세션 디렉토리가 없습니다.'));
+    return;
+  }
+
+  console.log('');
+  console.log(chalk.cyan('━'.repeat(60)));
+  console.log(chalk.cyan.bold(`완료된 세션 정리 (${days}일 이전)`));
+  console.log(chalk.cyan('━'.repeat(60)));
+  console.log('');
+
+  const now = Date.now();
+  const cutoffTime = now - (days * 24 * 60 * 60 * 1000);
+
+  const sessionDirs = fs.readdirSync(sessionsDir)
+    .filter(f => fs.statSync(path.join(sessionsDir, f)).isDirectory())
+    .sort();
+
+  let completedCount = 0;
+  let skippedCount = 0;
+  let errorCount = 0;
+
+  for (const sessionId of sessionDirs) {
+    const sessionPath = path.join(sessionsDir, sessionId);
+    const sessionFile = path.join(sessionPath, 'session.json');
+
+    try {
+      // session.json 확인
+      if (!fs.existsSync(sessionFile)) {
+        console.log(chalk.gray(`  ${sessionId}: session.json 없음 (건너뜀)`));
+        skippedCount++;
+        continue;
+      }
+
+      // 세션 정보 읽기
+      const session = JSON.parse(fs.readFileSync(sessionFile, 'utf-8'));
+
+      // 세션 시작 시간 파싱
+      let sessionTime;
+      if (session.startedAt) {
+        sessionTime = new Date(session.startedAt).getTime();
+      } else {
+        // session.json에 시간 정보가 없으면 디렉토리 생성 시간 사용
+        const stats = fs.statSync(sessionPath);
+        sessionTime = stats.birthtimeMs || stats.mtimeMs;
+      }
+
+      // cutoff 시간 이후면 건너뜀
+      if (sessionTime > cutoffTime) {
+        console.log(chalk.gray(`  ${sessionId}: ${days}일 이내 (유지)`));
+        skippedCount++;
+        continue;
+      }
+
+      // 완료 상태가 아니면 건너뜀
+      if (session.status !== 'completed' && session.status !== 'error') {
+        console.log(chalk.yellow(`  ${sessionId}: 미완료 상태 (${session.status}) - 유지`));
+        skippedCount++;
+        continue;
+      }
+
+      // 세션 디렉토리 삭제
+      fs.removeSync(sessionPath);
+      console.log(chalk.green(`  ✓ ${sessionId}: 삭제됨 (${session.status})`));
+      completedCount++;
+
+    } catch (error) {
+      console.log(chalk.red(`  ✗ ${sessionId}: 오류 - ${error.message}`));
+      errorCount++;
+    }
+  }
+
+  console.log('');
+  console.log(chalk.cyan('━'.repeat(60)));
+  console.log(chalk.white(`  삭제됨: ${chalk.green(completedCount)}개`));
+  console.log(chalk.white(`  유지됨: ${chalk.gray(skippedCount)}개`));
+  if (errorCount > 0) {
+    console.log(chalk.white(`  오류: ${chalk.red(errorCount)}개`));
+  }
+  console.log(chalk.cyan('━'.repeat(60)));
+  console.log('');
 }
