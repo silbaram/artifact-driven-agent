@@ -153,7 +153,12 @@ This directory contains the project documentation.
 ### MkDocs
 
 \`\`\`bash
-# Install MkDocs
+# 가상환경 생성 및 활성화 (권장)
+python -m venv venv
+venv\\Scripts\\activate        # Windows
+source venv/bin/activate     # macOS/Linux
+
+# MkDocs 설치
 pip install mkdocs mkdocs-material
 
 # Serve locally
@@ -337,6 +342,11 @@ async function serveDocs(options) {
       console.log(chalk.red('❌ MkDocs 실행 실패'));
       console.log(chalk.yellow('💡 MkDocs가 설치되어 있는지 확인하세요:'));
       console.log('');
+      console.log(chalk.gray('가상환경을 사용하여 설치하세요 (권장):'));
+      console.log('');
+      console.log(chalk.white('  python -m venv venv'));
+      console.log(chalk.white('  venv\\Scripts\\activate        # Windows'));
+      console.log(chalk.white('  source venv/bin/activate     # macOS/Linux'));
       console.log(chalk.white('  pip install mkdocs mkdocs-material'));
       console.log('');
       process.exit(1);
@@ -348,13 +358,16 @@ async function serveDocs(options) {
         console.log('');
         console.log(chalk.red('❌ MkDocs가 설치되어 있지 않습니다.'));
         console.log('');
-        console.log(chalk.yellow('💡 다음 명령어로 설치하세요:'));
+        console.log(chalk.yellow('💡 가상환경을 사용하여 설치하세요 (권장):'));
         console.log('');
+        console.log(chalk.white('  python -m venv venv'));
+        console.log(chalk.white('  venv\\Scripts\\activate        # Windows'));
+        console.log(chalk.white('  source venv/bin/activate     # macOS/Linux'));
         console.log(chalk.white('  pip install mkdocs mkdocs-material'));
         console.log('');
-        console.log(chalk.gray('또는 Python 3.x가 설치되지 않았다면:'));
-        console.log(chalk.gray('  brew install python'));
-        console.log(chalk.gray('  pip3 install mkdocs mkdocs-material'));
+        console.log(chalk.gray('Python 3.x가 설치되지 않았다면 먼저 설치하세요:'));
+        console.log(chalk.gray('  Windows: https://www.python.org/downloads/'));
+        console.log(chalk.gray('  macOS:   brew install python'));
         console.log('');
         process.exit(1);
       } else if (code !== 0 && code !== null) {
