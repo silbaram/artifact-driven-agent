@@ -93,8 +93,8 @@ program
 
 // Config command
 program
-  .command('config [action] [args...]')
-  .description('역할별 AI 도구 설정 (show, set, set-default, reset)')
+  .command('config [action] [key] [value]')
+  .description('설정 관리 (list, get <key>, set <key> <value>)')
   .action(config);
 
 // Run command
