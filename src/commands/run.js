@@ -557,7 +557,12 @@ async function launchTool(tool, systemPrompt, promptFile, logMessage, options = 
   };
 
   const config = commands[tool];
-  const { cmd, args } = config;
+  let { cmd, args } = config;
+
+  // captureOutput 모드일 때 Claude는 --print 옵션 필요
+  if (options.captureOutput && tool === 'claude') {
+    args = ['--print', '-p', '위 시스템 프롬프트의 지시에 따라 JSON으로 응답하세요.', '--system-prompt-file', promptFile];
+  }
 
   // 도구 존재 확인 (Windows: where, Unix: which)
   const whichCmd = process.platform === 'win32' ? 'where' : 'which';
@@ -566,16 +571,13 @@ async function launchTool(tool, systemPrompt, promptFile, logMessage, options = 
   return new Promise((resolve, reject) => {
     which.on('close', (code) => {
       if (code !== 0) {
-        // ... (기존 에러 처리 로직 유지) ...
         console.log(chalk.yellow(`⚠️  ${tool} CLI가 설치되어 있지 않습니다.`));
-        // ...
         logMessage('WARN', `${tool} CLI not found, prompt displayed`);
-        resolve(null); // 캡처 모드일 경우 null 반환
+        resolve(null);
         return;
       }
 
       if (!options.captureOutput) {
-        // ... (기존 안내 메시지 출력 로직 유지) ...
         console.log('');
         if (config.automation === 'perfect') {
           console.log(chalk.green('━'.repeat(60)));
@@ -584,14 +586,12 @@ async function launchTool(tool, systemPrompt, promptFile, logMessage, options = 
           console.log('');
           console.log(chalk.gray(`시스템 프롬프트: ${relativePromptPath}`));
           console.log('');
-        } else {
-           // ...
         }
         console.log(chalk.green(`✓ ${tool} 실행 중...`));
         console.log('');
       }
-      
-      logMessage('INFO', `${tool} CLI 실행 (automation: ${config.automation})`);
+
+      logMessage('INFO', `${tool} CLI 실행 (automation: ${config.automation}, captureOutput: ${!!options.captureOutput})`);
 
       // 환경 변수 병합
       const envVars = {
@@ -625,8 +625,7 @@ async function launchTool(tool, systemPrompt, promptFile, logMessage, options = 
         if (code === 0) {
           resolve(options.captureOutput ? capturedOutput : null);
         } else {
-          // 캡처 모드일 때는 에러 메시지도 포함해서 reject
-          const errorMsg = options.captureOutput 
+          const errorMsg = options.captureOutput
             ? `${tool} exited with code ${code}. Stderr: ${capturedError}`
             : `${tool} exited with code ${code}`;
           reject(new Error(errorMsg));
