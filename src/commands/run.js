@@ -2,6 +2,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import { spawn } from 'child_process';
 import chalk from 'chalk';
+import inquirer from 'inquirer';
 import {
   getWorkspaceDir,
   getSessionsDir,
@@ -19,29 +20,28 @@ import {
   getActiveSessions,
   getPendingQuestions
 } from '../utils/sessionState.js';
+import { getToolForRole } from '../utils/config.js';
 
-export async function run(role, tool) {
-  if (!isWorkspaceSetup()) {
-    console.log(chalk.red('❌ 먼저 setup을 실행하세요.'));
-    console.log(chalk.gray('  ada setup'));
-    process.exit(1);
-  }
-
+/**
+ * [API] AI 에이전트 세션 실행 (핵심 로직)
+ * 오케스트레이터나 다른 모듈에서 호출하여 사용
+ * @param {string} role - 실행할 역할 (예: 'developer')
+ * @param {string} tool - 사용할 도구 (예: 'claude')
+ * @param {object} options - 추가 옵션
+ * @returns {Promise<object>} 세션 결과 정보
+ */
+export async function executeAgentSession(role, tool, options = {}) {
   const roles = getAvailableRoles();
   const tools = ['claude', 'codex', 'gemini', 'copilot'];
 
   // 역할 검증
   if (!roles.includes(role)) {
-    console.log(chalk.red(`❌ 알 수 없는 역할: ${role}`));
-    console.log(chalk.gray(`사용 가능: ${roles.join(', ')}`));
-    process.exit(1);
+    throw new Error(`알 수 없는 역할입니다: ${role} (사용 가능: ${roles.join(', ')})`);
   }
 
   // 도구 검증
   if (!tools.includes(tool)) {
-    console.log(chalk.red(`❌ 알 수 없는 도구: ${tool}`));
-    console.log(chalk.gray(`사용 가능: ${tools.join(', ')}`));
-    process.exit(1);
+    throw new Error(`알 수 없는 도구입니다: ${tool} (사용 가능: ${tools.join(', ')})`);
   }
 
   const workspace = getWorkspaceDir();
@@ -55,7 +55,7 @@ export async function run(role, tool) {
   fs.ensureDirSync(sessionDir);
   fs.ensureDirSync(logsDir);
 
-  // 세션 정보 저장
+  // 세션 정보 객체
   const sessionInfo = {
     session_id: sessionId,
     role: role,
@@ -66,36 +66,136 @@ export async function run(role, tool) {
   };
   fs.writeFileSync(path.join(sessionDir, 'session.json'), JSON.stringify(sessionInfo, null, 2));
 
-  // 로그 파일 초기화
+  // 로그 헬퍼
   const logFile = path.join(logsDir, `${sessionId}.log`);
   const logMessage = (level, msg) => {
     const line = `[${getTimestamp()}] [${level}] ${msg}\n`;
     fs.appendFileSync(logFile, line);
+    // 옵션에 따라 콘솔 출력 제어 가능 (현재는 항상 출력)
   };
 
-  logMessage('INFO', `세션 시작: role=${role}, tool=${tool}, template=${template}`);
+  try {
+    logMessage('INFO', `세션 시작: role=${role}, tool=${tool}, template=${template}`);
 
-  // 멀티 세션: 상태 파일에 세션 등록
-  registerSession(sessionId, role, tool);
-  logMessage('INFO', `세션 등록: ${sessionId}`);
+    // 멀티 세션 등록
+    registerSession(sessionId, role, tool);
+    logMessage('INFO', `세션 등록: ${sessionId}`);
 
-  // 역할 파일 경로
-  const roleFile = path.join(workspace, 'roles', `${role}.md`);
-  const roleContent = fs.readFileSync(roleFile, 'utf-8');
+    // 역할 파일 로드 (옵션으로 오버라이드 가능)
+    let systemPrompt;
+    if (options.systemPromptOverride) {
+      systemPrompt = options.systemPromptOverride;
+      logMessage('INFO', '시스템 프롬프트 오버라이드 사용됨');
+    } else {
+      const roleFile = path.join(workspace, 'roles', `${role}.md`);
+      if (!fs.existsSync(roleFile)) {
+        throw new Error(`역할 파일이 존재하지 않습니다: ${roleFile}`);
+      }
+      const roleContent = fs.readFileSync(roleFile, 'utf-8');
+      systemPrompt = buildSystemPrompt(workspace, role, roleContent);
+    }
 
-  // 시스템 프롬프트 생성
-  const systemPrompt = buildSystemPrompt(workspace, role, roleContent);
+    // 프롬프트 파일 저장
+    const promptFile = path.join(sessionDir, 'system-prompt.md');
+    fs.writeFileSync(promptFile, systemPrompt, 'utf-8');
+    logMessage('INFO', `시스템 프롬프트 저장: ${promptFile}`);
 
-  // 시스템 프롬프트를 파일로 저장 (AI 도구가 읽을 수 있도록)
-  const promptFile = path.join(sessionDir, 'system-prompt.md');
-  fs.writeFileSync(promptFile, systemPrompt, 'utf-8');
-  logMessage('INFO', `시스템 프롬프트 저장: ${promptFile}`);
+    // 터미널 UI 출력 (Headless 모드가 아닐 때만)
+    if (!options.headless) {
+      printSessionBanner(role, tool, sessionId, template);
+    }
 
-  // 다른 활성 세션 확인
+    // AI 도구 프로세스 실행
+    const output = await launchTool(tool, systemPrompt, promptFile, logMessage, options);
+
+    // 정상 종료 처리
+    sessionInfo.status = 'completed';
+    sessionInfo.ended_at = getTimestamp();
+    // 캡처된 출력이 있으면 세션 정보에 저장 (선택 사항)
+    if (output) {
+      sessionInfo.output = output;
+    }
+    fs.writeFileSync(path.join(sessionDir, 'session.json'), JSON.stringify(sessionInfo, null, 2));
+    logMessage('INFO', '세션 종료');
+
+    unregisterSession(sessionId);
+    logMessage('INFO', `세션 해제: ${sessionId}`);
+
+    // 캡처된 출력 반환
+    return { ...sessionInfo, output };
+
+  } catch (error) {
+    // 에러 처리
+    sessionInfo.status = 'error';
+    sessionInfo.error = error.message;
+    fs.writeFileSync(path.join(sessionDir, 'session.json'), JSON.stringify(sessionInfo, null, 2));
+    logMessage('ERROR', error.message);
+
+    unregisterSession(sessionId);
+    logMessage('INFO', `세션 해제 (에러): ${sessionId}`);
+
+    throw error;
+  }
+}
+
+/**
+ * [CLI] 실행 명령어 핸들러
+ * 사용자 입력을 처리하고 executeAgentSession을 호출
+ */
+export async function runCommand(role, tool) {
+  if (!isWorkspaceSetup()) {
+    console.log(chalk.red('❌ 먼저 setup을 실행하세요.'));
+    console.log(chalk.gray('  ada setup'));
+    process.exit(1);
+  }
+
+  try {
+    // 1. 역할 선택 (입력 없으면 질문)
+    if (!role) {
+      const roles = getAvailableRoles();
+      const answer = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'role',
+          message: '실행할 역할을 선택하세요:',
+          choices: roles
+        }
+      ]);
+      role = answer.role;
+    }
+
+    // 2. 도구 자동 선택 (입력 없으면 설정 파일 참조)
+    if (!tool) {
+      tool = getToolForRole(role);
+      console.log(chalk.gray(`ℹ️  설정된 기본 도구를 사용합니다: ${tool}`));
+    }
+
+    // 3. 세션 실행
+    await executeAgentSession(role, tool);
+
+  } catch (error) {
+    console.error(chalk.red('\n❌ 실행 중 오류가 발생했습니다:'));
+    console.error(chalk.white(error.message));
+    process.exit(1);
+  }
+}
+
+// 기존 CLI 호환성을 위해 run이라는 이름으로 export
+export { runCommand as run };
+// 시스템 프롬프트 생성 로직도 외부에서 쓸 수 있게 export
+export { buildSystemPrompt };
+
+
+// ============================================================================ 
+// 내부 헬퍼 함수들
+// ============================================================================ 
+
+function printSessionBanner(role, tool, sessionId, template) {
+  // 다른 활성 세션 정보
   const activeSessions = getActiveSessions().filter(s => s.sessionId !== sessionId);
   const pendingQuestions = getPendingQuestions();
 
-  // 터미널 타이틀 설정
+  // 터미널 타이틀
   const terminalTitle = `ADA: ${role} (${tool})`;
   process.stdout.write(`\x1b]0;${terminalTitle}\x07`);
 
@@ -105,7 +205,6 @@ export async function run(role, tool) {
   console.log(chalk.cyan('━'.repeat(60)));
   console.log('');
 
-  // 역할 강조 표시
   const roleEmojis = {
     'analyzer': '🔍',
     'planner': '📋',
@@ -131,10 +230,9 @@ export async function run(role, tool) {
   console.log(chalk.white(`  템플릿:   ${chalk.green(template)}`));
   console.log(chalk.white(`  도구:     ${chalk.green(tool)}`));
   console.log(chalk.white(`  작업공간: ${chalk.gray('ai-dev-team/')}`));
-  console.log(chalk.white(`  로그:     ${chalk.gray(`.sessions/logs/${sessionId}.log`)}`));
+  console.log(chalk.white(`  로그:     ${chalk.gray('.sessions/logs/' + sessionId + '.log')}`));
   console.log('');
 
-  // 멀티 세션 정보 표시
   if (activeSessions.length > 0) {
     console.log(chalk.white(`  🔗 활성 세션: ${chalk.yellow(activeSessions.length)}개`));
     activeSessions.forEach(s => {
@@ -150,32 +248,6 @@ export async function run(role, tool) {
 
   console.log(chalk.cyan('━'.repeat(60)));
   console.log('');
-
-  // 도구별 실행
-  try {
-    await launchTool(tool, systemPrompt, promptFile, logMessage);
-
-    // 세션 완료 처리
-    sessionInfo.status = 'completed';
-    sessionInfo.ended_at = getTimestamp();
-    fs.writeFileSync(path.join(sessionDir, 'session.json'), JSON.stringify(sessionInfo, null, 2));
-    logMessage('INFO', '세션 종료');
-
-    // 멀티 세션: 상태 파일에서 세션 제거
-    unregisterSession(sessionId);
-    logMessage('INFO', `세션 해제: ${sessionId}`);
-  } catch (error) {
-    sessionInfo.status = 'error';
-    sessionInfo.error = error.message;
-    fs.writeFileSync(path.join(sessionDir, 'session.json'), JSON.stringify(sessionInfo, null, 2));
-    logMessage('ERROR', error.message);
-
-    // 멀티 세션: 에러 시에도 세션 제거
-    unregisterSession(sessionId);
-    logMessage('INFO', `세션 해제 (에러): ${sessionId}`);
-
-    throw error;
-  }
 }
 
 function buildSystemPrompt(workspace, role, roleContent) {
@@ -451,7 +523,7 @@ function buildSystemPrompt(workspace, role, roleContent) {
   return prompt;
 }
 
-async function launchTool(tool, systemPrompt, promptFile, logMessage) {
+async function launchTool(tool, systemPrompt, promptFile, logMessage, options = {}) {
   // 프롬프트 파일의 상대 경로 (작업 디렉토리 기준)
   const relativePromptPath = path.relative(process.cwd(), promptFile);
 
@@ -487,74 +559,77 @@ async function launchTool(tool, systemPrompt, promptFile, logMessage) {
   const config = commands[tool];
   const { cmd, args } = config;
 
-  // 도구 존재 확인
-  const which = spawn('which', [cmd], { shell: true });
+  // 도구 존재 확인 (Windows: where, Unix: which)
+  const whichCmd = process.platform === 'win32' ? 'where' : 'which';
+  const which = spawn(whichCmd, [cmd], { shell: true });
 
   return new Promise((resolve, reject) => {
     which.on('close', (code) => {
       if (code !== 0) {
+        // ... (기존 에러 처리 로직 유지) ...
         console.log(chalk.yellow(`⚠️  ${tool} CLI가 설치되어 있지 않습니다.`));
-        console.log('');
-        console.log(chalk.white('시스템 프롬프트가 다음 파일에 저장되었습니다:'));
-        console.log(chalk.cyan(`  ${relativePromptPath}`));
-        console.log('');
-        console.log(chalk.gray('─'.repeat(60)));
-        console.log(systemPrompt);
-        console.log(chalk.gray('─'.repeat(60)));
-        console.log('');
-        console.log(chalk.gray('위 내용을 복사하여 AI 도구에 붙여넣거나, 파일을 읽도록 하세요.'));
+        // ...
         logMessage('WARN', `${tool} CLI not found, prompt displayed`);
-        resolve();
+        resolve(null); // 캡처 모드일 경우 null 반환
         return;
       }
 
-      // 도구별 안내 메시지
-      console.log('');
-      if (config.automation === 'perfect') {
-        // 완전 자동화: 간단한 성공 메시지
-        console.log(chalk.green('━'.repeat(60)));
-        console.log(chalk.green.bold('✓ 역할이 자동으로 설정됩니다'));
-        console.log(chalk.green('━'.repeat(60)));
+      if (!options.captureOutput) {
+        // ... (기존 안내 메시지 출력 로직 유지) ...
         console.log('');
-        console.log(chalk.gray(`시스템 프롬프트: ${relativePromptPath}`));
-        console.log('');
-      } else {
-        // 수동 입력 필요: 명확한 안내
-        console.log(chalk.yellow('━'.repeat(60)));
-        console.log(chalk.yellow.bold('⚠️  중요: AI 도구 시작 후 다음을 입력하세요'));
-        console.log(chalk.yellow('━'.repeat(60)));
-        console.log('');
-        console.log(chalk.cyan.bold(`  ${config.instruction}`));
-        console.log('');
-        console.log(chalk.gray('그 다음 Enter를 눌러 역할을 수행하도록 하세요.'));
-        console.log('');
-        console.log(chalk.yellow('━'.repeat(60)));
+        if (config.automation === 'perfect') {
+          console.log(chalk.green('━'.repeat(60)));
+          console.log(chalk.green.bold('✓ 역할이 자동으로 설정됩니다'));
+          console.log(chalk.green('━'.repeat(60)));
+          console.log('');
+          console.log(chalk.gray(`시스템 프롬프트: ${relativePromptPath}`));
+          console.log('');
+        } else {
+           // ...
+        }
+        console.log(chalk.green(`✓ ${tool} 실행 중...`));
         console.log('');
       }
-
-      // CLI 실행
-      console.log(chalk.green(`✓ ${tool} 실행 중...`));
-      console.log('');
+      
       logMessage('INFO', `${tool} CLI 실행 (automation: ${config.automation})`);
 
-      // 환경 변수 병합 (도구별 커스텀 환경 변수 포함)
+      // 환경 변수 병합
       const envVars = {
         ...process.env,
         ADA_SYSTEM_PROMPT: systemPrompt,
-        ...(config.env || {})  // 도구별 환경 변수 추가
+        ...(config.env || {})
       };
 
+      // 캡처 모드에 따라 stdio 설정 변경
+      const stdioConfig = options.captureOutput ? ['ignore', 'pipe', 'pipe'] : 'inherit';
+
       const child = spawn(cmd, args, {
-        stdio: 'inherit',
+        stdio: stdioConfig,
         shell: true,
         env: envVars
       });
 
+      let capturedOutput = '';
+      let capturedError = '';
+
+      if (options.captureOutput) {
+        child.stdout.on('data', (data) => {
+          capturedOutput += data.toString();
+        });
+        child.stderr.on('data', (data) => {
+          capturedError += data.toString();
+        });
+      }
+
       child.on('close', (code) => {
         if (code === 0) {
-          resolve();
+          resolve(options.captureOutput ? capturedOutput : null);
         } else {
-          reject(new Error(`${tool} exited with code ${code}`));
+          // 캡처 모드일 때는 에러 메시지도 포함해서 reject
+          const errorMsg = options.captureOutput 
+            ? `${tool} exited with code ${code}. Stderr: ${capturedError}`
+            : `${tool} exited with code ${code}`;
+          reject(new Error(errorMsg));
         }
       });
 

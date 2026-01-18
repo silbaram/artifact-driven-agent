@@ -8,6 +8,8 @@ import { validate } from '../src/commands/validate.js';
 import { sessions } from '../src/commands/sessions.js';
 import { logs } from '../src/commands/logs.js';
 import { run } from '../src/commands/run.js';
+import { orchestrate } from '../src/commands/orchestrate.js';
+import { config } from '../src/commands/config.js';
 import { interactive } from '../src/commands/interactive.js';
 import { upgrade } from '../src/commands/upgrade.js';
 import sprint from '../src/commands/sprint.js';
@@ -83,10 +85,22 @@ program
   .option('-g, --generator <type>', '문서 생성기 (mkdocs, jekyll)')
   .action(docs);
 
+// Orchestrate command
+program
+  .command('orchestrate [mode]')
+  .description('AI 에이전트 오케스트레이션 (sprint_routine, feature_impl 등)')
+  .action(orchestrate);
+
+// Config command
+program
+  .command('config [action] [args...]')
+  .description('역할별 AI 도구 설정 (show, set, set-default, reset)')
+  .action(config);
+
 // Run command
 program
-  .command('run <role> <tool>')
-  .description('AI 에이전트 실행 (예: run backend claude)')
+  .command('run <role> [tool]')
+  .description('AI 에이전트 실행 (예: run backend [claude])')
   .action(run);
 
 // Parse arguments
@@ -95,9 +109,12 @@ const args = process.argv.slice(2);
 if (args.length === 0) {
   // 인자 없으면 대화형 모드
   interactive();
-} else if (args.length === 2 && !args[0].startsWith('-') && !['setup', 'status', 'reset', 'upgrade', 'validate', 'sessions', 'logs', 'run', 'sprint', 'docs'].includes(args[0])) {
-  // 두 개의 인자가 명령어가 아니면 role tool로 간주
+} else if (args.length === 2 && !args[0].startsWith('-') && !['setup', 'status', 'reset', 'upgrade', 'validate', 'sessions', 'logs', 'run', 'sprint', 'docs', 'orchestrate', 'config'].includes(args[0])) {
+  // 두 개의 인자가 명령어가 아니면 role tool로 간주 (간편 실행)
   run(args[0], args[1]);
+} else if (args.length === 1 && !args[0].startsWith('-') && !['setup', 'status', 'reset', 'upgrade', 'validate', 'sessions', 'logs', 'run', 'sprint', 'docs', 'orchestrate', 'config'].includes(args[0])) {
+  // 인자가 하나면 role로 간주하고 도구는 자동 선택
+  run(args[0]);
 } else {
   program.parse();
 }

@@ -200,9 +200,14 @@ artifact-driven-agent/
 │   │   ├── setup.js
 │   │   ├── run.js
 │   │   ├── sprint.js      # 스프린트 관리
-│   │   └── sessions.js    # 세션 모니터링
+│   │   ├── sessions.js    # 세션 모니터링
+│   │   ├── orchestrate.js # 오케스트레이터
+│   │   └── config.js      # 설정 관리
+│   ├── orchestrator/       # 오케스트레이터 모듈
+│   │   └── consultant.js  # Manager AI 컨설팅
 │   └── utils/
 │       ├── files.js
+│       ├── config.js      # 설정 유틸리티
 │       └── sessionState.js
 ├── core/                   # 범용 핵심
 │   ├── roles/              # 6개 역할
@@ -246,6 +251,7 @@ ai-dev-team/
 │               └── task-005.md
 ├── roles/                  # core + template 병합
 ├── rules/
+├── ada.config.json         # 역할별 AI 도구 설정
 └── .sessions/              # 세션 이력
     ├── logs/
     └── .ada-status.json    # 멀티 세션 상태 파일
@@ -262,6 +268,9 @@ ai-dev-team/
 | `ada` | 대화형 모드 |
 | `ada setup [template]` | 템플릿 세팅 (web, lib, game, cli) |
 | `ada status` | 상태 확인 (버전 체크 포함) |
+| `ada config` | 역할별 AI 도구 설정 (대화형) |
+| `ada config show` | 현재 설정 보기 |
+| `ada orchestrate` | AI 에이전트 자동 오케스트레이션 |
 | `ada upgrade` | 작업공간을 최신 버전으로 업그레이드 |
 | `ada upgrade --dry-run` | 변경 사항 미리보기 |
 | `ada upgrade --rollback` | 이전 백업으로 롤백 |
@@ -335,6 +344,44 @@ ada docs publish
 ```bash
 ada documenter claude
 ```
+
+### 오케스트레이터 (자동화)
+
+```bash
+# 대화형 모드 선택
+ada orchestrate
+
+# 완전 자동화 모드 (Manager AI가 판단)
+ada orchestrate auto
+
+# 시나리오별 실행
+ada orchestrate sprint_routine    # Planner → Developer → Reviewer
+ada orchestrate feature_impl      # Developer → Reviewer
+ada orchestrate qa_pass           # QA → Developer
+ada orchestrate documentation     # Documenter
+```
+
+### 설정 관리
+
+```bash
+# 대화형 설정 모드
+ada config
+
+# 현재 설정 보기
+ada config show
+
+# 역할별 도구 설정
+ada config set developer gemini
+ada config set reviewer claude
+
+# 기본 도구 변경
+ada config set-default gemini
+
+# 설정 초기화
+ada config reset
+```
+
+**지원 도구:** claude, gemini, codex, copilot
 
 ---
 
@@ -502,6 +549,119 @@ ai-dev-team/.sessions/.ada-status.json
 
 ---
 
+## 🤖 오케스트레이터
+
+오케스트레이터는 여러 AI 에이전트를 자동으로 순차/조건부 실행하는 기능입니다.
+
+### 실행 모드
+
+| 모드 | 설명 | 실행 순서 |
+|------|------|----------|
+| `auto` | Manager AI가 상황 판단 | 자동 결정 |
+| `sprint_routine` | 스프린트 루틴 | Planner → Developer → Reviewer |
+| `feature_impl` | 기능 구현 | Developer → Reviewer |
+| `qa_pass` | QA 패스 | QA → Developer (버그 시) |
+| `documentation` | 문서화 | Documenter |
+
+### 완전 자동화 모드 (auto)
+
+```bash
+ada orchestrate auto
+```
+
+**동작 방식:**
+1. Manager AI가 프로젝트 상태 분석 (스프린트, Task 상태)
+2. 다음 실행할 역할 결정
+3. 해당 역할 에이전트 실행
+4. 완료 후 다시 상태 분석 (무한 루프)
+
+**Manager AI 판단 기준:**
+- plan.md 없음 → planner 실행
+- 스프린트 없음 → 대기 (사용자가 `ada sprint create` 필요)
+- BACKLOG Task 있음 → developer 실행
+- DONE Task 있음 (리뷰 미완료) → reviewer 실행
+- 모든 Task 완료 → documenter 실행
+
+### 시나리오 모드
+
+```bash
+# 스프린트 전체 사이클
+ada orchestrate sprint_routine
+
+# 기능 구현만
+ada orchestrate feature_impl
+```
+
+---
+
+## ⚙️ 설정 관리
+
+역할별로 사용할 AI 도구를 설정할 수 있습니다.
+
+### 설정 파일
+
+```
+ai-dev-team/ada.config.json
+```
+
+```json
+{
+  "version": "1.0",
+  "defaults": {
+    "tool": "claude"
+  },
+  "roles": {
+    "manager": "claude",
+    "planner": "claude",
+    "developer": "gemini",
+    "reviewer": "claude",
+    "qa": "gemini",
+    "documenter": "claude"
+  }
+}
+```
+
+### 대화형 설정
+
+```bash
+ada config
+```
+
+**메뉴:**
+- 📋 현재 설정 보기
+- 🔧 역할별 도구 설정
+- ⚡ 기본 도구 변경
+- 🎯 빠른 설정 (프리셋)
+- 🔄 설정 초기화
+
+### 프리셋
+
+| 프리셋 | 설명 |
+|--------|------|
+| All Claude | 모든 역할에 Claude 사용 |
+| All Gemini | 모든 역할에 Gemini 사용 |
+| Mixed Optimal | 역할별 최적 조합 |
+| Dev Gemini + Review Claude | 개발은 Gemini, 리뷰는 Claude |
+
+### 명령어 모드
+
+```bash
+# 개별 역할 설정
+ada config set developer gemini
+ada config set reviewer claude
+
+# 기본 도구 변경
+ada config set-default gemini
+
+# 설정 확인
+ada config show
+
+# 초기화
+ada config reset
+```
+
+---
+
 ## ⚠️ 핵심 원칙
 
 ### 금지 사항
@@ -570,6 +730,17 @@ ai-dev-team/.sessions/.ada-status.json
 - `ada sprint add` - Task 자동 추가
 - `ada sprint close` - 스프린트 종료 및 작업 파일 정리 (archive/clean/keep-all 옵션)
 - `ada sprint list` - 스프린트 목록 확인
+- `ada orchestrate` - AI 에이전트 자동 오케스트레이션
+- `ada config` - 역할별 AI 도구 설정
+
+### 오케스트레이터 (v0.3.0+)
+
+**이전:** 수동으로 각 역할 개별 실행
+
+**현재:**
+- Manager AI가 프로젝트 상태를 분석하고 다음 역할 자동 결정
+- 시나리오별 파이프라인 실행 (sprint_routine, feature_impl 등)
+- 역할별 AI 도구 설정 지원 (claude, gemini, codex, copilot)
 
 ---
 
