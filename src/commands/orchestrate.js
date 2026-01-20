@@ -286,13 +286,13 @@ function printStatusReport(status) {
     if (status.tasks.backlog.length > 0) {
       console.log(chalk.gray(`     ├─ BACKLOG: ${status.tasks.backlog.length}개`));
       status.tasks.backlog.slice(0, 3).forEach(t => {
-        console.log(chalk.gray(`     │  └─ ${t.id}: ${t.title.substring(0, 30)}`));
+        console.log(chalk.gray(`     │  └─ ${t.id}: ${truncate(t.title, 30)}`));
       });
     }
     if (status.tasks.inDev.length > 0) {
       console.log(chalk.yellow(`     ├─ IN_DEV: ${status.tasks.inDev.length}개`));
       status.tasks.inDev.forEach(t => {
-        console.log(chalk.yellow(`     │  └─ ${t.id}: ${t.title.substring(0, 30)}`));
+        console.log(chalk.yellow(`     │  └─ ${t.id}: ${truncate(t.title, 30)}`));
       });
     }
     if (status.tasks.inReview.length > 0) {
@@ -310,7 +310,7 @@ function printStatusReport(status) {
     if (status.tasks.reject.length > 0) {
       console.log(chalk.red(`     └─ REJECT: ${status.tasks.reject.length}개`));
       status.tasks.reject.forEach(t => {
-        console.log(chalk.red(`        └─ ${t.id}: ${t.title.substring(0, 30)}`));
+        console.log(chalk.red(`        └─ ${t.id}: ${truncate(t.title, 30)}`));
       });
     }
   } else {
@@ -646,4 +646,16 @@ function wait(ms) {
 
 function isAutomationCapableTool(tool) {
   return tool === 'claude' || tool === 'gemini';
+}
+
+/**
+ * 문자열을 지정된 길이로 자르고 말줄임표 추가
+ * @param {string} str - 원본 문자열
+ * @param {number} maxLength - 최대 길이
+ * @returns {string}
+ */
+function truncate(str, maxLength = 30) {
+  if (!str) return '';
+  if (str.length <= maxLength) return str;
+  return str.substring(0, maxLength - 1) + '…';
 }

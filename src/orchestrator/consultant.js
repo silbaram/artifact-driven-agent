@@ -155,37 +155,88 @@ function normalizeTaskStatus(status) {
 }
 
 /**
- * AI 출력에서 JSON 객체 추출
+ * AI 출력에서 JSON 객체 추출 및 스키마 검증
  */
 function extractJsonFromOutput(output) {
+  let parsed = null;
+
+  // 1. 직접 JSON 파싱 시도
   try {
-    return JSON.parse(output);
-  } catch (e) {
-    // Markdown 코드 블록 내 JSON 추출
+    parsed = JSON.parse(output);
+  } catch {
+    // 2. Markdown 코드 블록 내 JSON 추출
     const jsonMatch = output.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
     if (jsonMatch && jsonMatch[1]) {
       try {
-        return JSON.parse(jsonMatch[1]);
-      } catch (e2) {
+        parsed = JSON.parse(jsonMatch[1]);
+      } catch {
         // 무시
       }
     }
 
-    // 중괄호로 감싸진 블록 추출
-    const firstBrace = output.indexOf('{');
-    const lastBrace = output.lastIndexOf('}');
+    // 3. 중괄호로 감싸진 블록 추출
+    if (!parsed) {
+      const firstBrace = output.indexOf('{');
+      const lastBrace = output.lastIndexOf('}');
 
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      const jsonStr = output.substring(firstBrace, lastBrace + 1);
-      try {
-        return JSON.parse(jsonStr);
-      } catch (e3) {
-        // 무시
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        const jsonStr = output.substring(firstBrace, lastBrace + 1);
+        try {
+          parsed = JSON.parse(jsonStr);
+        } catch {
+          // 무시
+        }
       }
     }
+  }
 
+  // 파싱 실패
+  if (!parsed) {
     return null;
   }
+
+  // 4. 스키마 검증
+  const validationResult = validateDecisionSchema(parsed);
+  if (!validationResult.valid) {
+    console.warn(`⚠️ Manager 응답 스키마 검증 실패: ${validationResult.error}`);
+    return null;
+  }
+
+  return parsed;
+}
+
+/**
+ * Decision 객체 스키마 검증
+ * @param {object} decision
+ * @returns {{ valid: boolean, error?: string }}
+ */
+function validateDecisionSchema(decision) {
+  // action 필드 검증
+  const validActions = ['run_agent', 'wait', 'ask_user'];
+  if (!decision.action) {
+    return { valid: false, error: 'action 필드가 없습니다' };
+  }
+  if (!validActions.includes(decision.action)) {
+    return { valid: false, error: `유효하지 않은 action: ${decision.action} (허용: ${validActions.join(', ')})` };
+  }
+
+  // run_agent인 경우 role 필수
+  if (decision.action === 'run_agent') {
+    const validRoles = ['planner', 'developer', 'reviewer', 'documenter', 'improver', 'qa', 'analyzer'];
+    if (!decision.role) {
+      return { valid: false, error: 'run_agent 액션에는 role 필드가 필수입니다' };
+    }
+    if (!validRoles.includes(decision.role)) {
+      return { valid: false, error: `유효하지 않은 role: ${decision.role} (허용: ${validRoles.join(', ')})` };
+    }
+  }
+
+  // reason 필드 검증 (필수)
+  if (!decision.reason || typeof decision.reason !== 'string') {
+    return { valid: false, error: 'reason 필드가 없거나 문자열이 아닙니다' };
+  }
+
+  return { valid: true };
 }
 
 /**
