@@ -6,6 +6,7 @@ import { executeAgentSession } from './run.js';
 import { getAvailableRoles, getWorkspaceDir, isWorkspaceSetup } from '../utils/files.js';
 import { consultManager } from '../orchestrator/consultant.js';
 import { readStatus, getActiveSessions } from '../utils/sessionState.js';
+import { parseTaskMetadata } from '../utils/taskParser.js';
 
 /**
  * [CLI] 오케스트레이션 명령어 핸들러
@@ -155,14 +156,16 @@ function checkProjectReadiness() {
         taskFiles.forEach(taskFile => {
           const taskPath = path.join(tasksDir, taskFile);
           const content = fs.readFileSync(taskPath, 'utf-8');
-          const taskInfo = parseTaskInfo(taskFile, content);
+          const taskInfo = parseTaskMetadata(content, taskFile);
 
-          switch (taskInfo.status) {
-            case 'BACKLOG': result.tasks.backlog.push(taskInfo); break;
-            case 'IN_DEV': result.tasks.inDev.push(taskInfo); break;
-            case 'DONE': result.tasks.done.push(taskInfo); break;
-            case 'REJECT': result.tasks.reject.push(taskInfo); break;
-          }
+          // status 정규화 (대소문자 무시)
+          const status = taskInfo.status.toUpperCase();
+
+          if (status === 'BACKLOG') result.tasks.backlog.push(taskInfo);
+          else if (status === 'IN_DEV') result.tasks.inDev.push(taskInfo);
+          else if (status === 'DONE') result.tasks.done.push(taskInfo);
+          else if (status === 'REJECTED' || status === 'REJECT') result.tasks.reject.push(taskInfo);
+          else result.tasks.backlog.push(taskInfo); // 기본값
         });
       }
     }
@@ -177,7 +180,7 @@ function checkProjectReadiness() {
     backlogFiles.forEach(taskFile => {
       const taskPath = path.join(backlogDir, taskFile);
       const content = fs.readFileSync(taskPath, 'utf-8');
-      result.backlogTasks.push(parseTaskInfo(taskFile, content));
+      result.backlogTasks.push(parseTaskMetadata(content, taskFile));
     });
   }
 
@@ -228,30 +231,6 @@ function checkProjectReadiness() {
   result.isReady = !result.issues.some(i => i.type === 'error');
 
   return result;
-}
-
-/**
- * Task 파일에서 정보 추출
- */
-function parseTaskInfo(filename, content) {
-  const taskId = filename.replace('.md', '');
-
-  const statusMatch = content.match(/Status:\s*(BACKLOG|IN_DEV|DONE|REJECT)/i);
-  const status = statusMatch ? statusMatch[1].toUpperCase() : 'UNKNOWN';
-
-  const priorityMatch = content.match(/Priority:\s*(P[0-3])/i);
-  const priority = priorityMatch ? priorityMatch[1] : 'P2';
-
-  const titleMatch = content.match(/^#\s+(.+)$/m);
-  const title = titleMatch ? titleMatch[1] : taskId;
-
-  return {
-    id: taskId,
-    title,
-    status,
-    priority,
-    hasReviewReport: content.includes('## Review') || content.includes('PASS') || content.includes('REJECT')
-  };
 }
 
 /**
@@ -388,15 +367,24 @@ async function runAutoMode() {
     return;
   }
 
+  const { getToolForRole } = await import('../utils/config.js');
+
   if (proceed === 'once') {
     // 1회만 실행
     const role = projectStatus.nextAction?.role || 'developer';
-    const { getToolForRole } = await import('../utils/config.js');
     const tool = getToolForRole(role);
 
     console.log(chalk.cyan(`\n🚀 ${role} (${tool}) 실행`));
     await executeAgentSession(role, tool, { headless: false });
     console.log(chalk.green(`\n✓ ${role} 작업 완료`));
+    return;
+  }
+
+  const managerTool = getToolForRole('manager');
+  if (!isAutomationCapableTool(managerTool)) {
+    console.log(chalk.yellow(`\n⚠️  Manager 도구(${managerTool})는 자동 모드에서 출력 캡처가 불가능합니다.`));
+    console.log(chalk.gray('   auto 모드에서는 claude/gemini를 사용해주세요.'));
+    console.log(chalk.gray('   예: ada config set roles.manager claude\n'));
     return;
   }
 
@@ -411,10 +399,32 @@ async function runAutoMode() {
   let lastAction = null;              // 직전 수행한 액션
   let repetitionCount = 0;            // 반복 횟수
   const REPETITION_LIMIT = 3;         // 최대 허용 반복 횟수 (회로 차단기)
+  let safeMode = false;               // 안전 모드 여부
 
   // 무한 루프
   while (true) {
     try {
+      if (safeMode) {
+        const { resume } = await inquirer.prompt([{
+          type: 'confirm',
+          name: 'resume',
+          message: '안전 모드입니다. 자동화를 다시 시작할까요?',
+          default: false
+        }]);
+
+        if (!resume) {
+          console.log(chalk.gray('안전 모드를 유지합니다. 30초 후 다시 확인합니다.'));
+          await wait(30000);
+          continue;
+        }
+
+        console.log(chalk.green('자동화를 재개합니다.'));
+        safeMode = false;
+      }
+
+      // 0. 상태 동기화 (Task 파일 → meta.md)
+      await syncSprintState();
+
       // 1. 현재 상태 및 활성 세션 수집
       const status = readStatus();
       const activeSessions = getActiveSessions();
@@ -492,7 +502,6 @@ async function runAutoMode() {
           continue;
         }
 
-        const { getToolForRole } = await import('../utils/config.js');
         const tool = getToolForRole(role);
         
         console.log(chalk.cyan(`\n🚀 ${role} (${tool}) 실행 시작`));
@@ -519,8 +528,13 @@ async function runAutoMode() {
       console.error(chalk.red(`⚠️ 오류 발생 (${consecutiveErrors}/${ERROR_THRESHOLD}): ${err.message}`));
 
       if (consecutiveErrors >= ERROR_THRESHOLD) {
-        console.error(chalk.bgRed.white.bold('\n🔥 치명적 오류: 연속된 에러로 인해 시스템을 종료합니다.'));
-        process.exit(1);
+        console.error(chalk.bgRed.white.bold('\n🔥 치명적 오류: 연속된 에러로 인해 안전 모드로 전환합니다.'));
+        safeMode = true;
+        consecutiveErrors = 0;
+        repetitionCount = 0;
+        lastAction = null;
+        await wait(2000);
+        continue;
       }
 
       console.log(chalk.gray('   5초 후 재시도합니다...'));
@@ -597,4 +611,78 @@ async function runStep(label, role, description) {
 
 function wait(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isAutomationCapableTool(tool) {
+  return tool === 'claude' || tool === 'gemini';
+}
+
+/**
+ * 스프린트 상태 동기화 (Orchestrator용)
+ * Task 파일들의 상태를 읽어 meta.md를 최신화
+ */
+async function syncSprintState() {
+  const workspace = getWorkspaceDir();
+  const sprintsDir = path.join(workspace, 'artifacts', 'sprints');
+
+  if (!fs.existsSync(sprintsDir)) return;
+
+  // 활성 스프린트 찾기
+  let activeSprint = null;
+  const sprints = fs.readdirSync(sprintsDir).filter(d => {
+    return fs.statSync(path.join(sprintsDir, d)).isDirectory() && !d.startsWith('_');
+  });
+
+  for (const sprint of sprints) {
+    const metaPath = path.join(sprintsDir, sprint, 'meta.md');
+    if (fs.existsSync(metaPath)) {
+      const content = fs.readFileSync(metaPath, 'utf-8');
+      if (content.includes('상태 | active')) {
+        activeSprint = sprint;
+        break;
+      }
+    }
+  }
+
+  if (!activeSprint) return;
+
+  const sprintPath = path.join(sprintsDir, activeSprint);
+  const tasksDir = path.join(sprintPath, 'tasks');
+  const metaPath = path.join(sprintPath, 'meta.md');
+
+  if (!fs.existsSync(tasksDir) || !fs.existsSync(metaPath)) return;
+
+  // Task 정보 수집
+  const tasks = [];
+  const taskFiles = fs.readdirSync(tasksDir).filter(f => f.endsWith('.md'));
+  
+  for (const file of taskFiles) {
+    const content = fs.readFileSync(path.join(tasksDir, file), 'utf-8');
+    tasks.push(parseTaskMetadata(content, file));
+  }
+
+  // meta.md 업데이트
+  let metaContent = fs.readFileSync(metaPath, 'utf-8');
+  
+  // Task 목록 섹션 찾기
+  const taskSectionRegex = /## Task 목록\s*\n[\s\S]*?\n\n(?=##|$)/;
+
+  // 새로운 Task 목록 생성
+  let taskListContent = '## Task 목록\n\n';
+  taskListContent += '| Task | 제목 | 상태 | 우선순위 | 크기 |\n';
+  taskListContent += '|------|------|:----:|:--------:|:----:|\n';
+
+  for (const task of tasks) {
+    taskListContent += `| ${task.id} | ${task.title} | ${task.status} | ${task.priority} | ${task.size} |\n`;
+  }
+  taskListContent += '\n';
+
+  if (metaContent.match(taskSectionRegex)) {
+    metaContent = metaContent.replace(taskSectionRegex, taskListContent);
+  } else {
+    metaContent = metaContent.replace(/## 참고/, taskListContent + '## 참고');
+  }
+
+  fs.writeFileSync(metaPath, metaContent);
+  // console.log(chalk.gray(`   (Sync: ${activeSprint} 상태 동기화됨)`)); 
 }

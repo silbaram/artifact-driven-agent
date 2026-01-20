@@ -252,9 +252,9 @@ ai-dev-team/
 ├── roles/                  # core + template 병합
 ├── rules/
 ├── ada.config.json         # 역할별 AI 도구 설정
+├── .ada-status.json        # 멀티 세션 상태 파일
 └── .sessions/              # 세션 이력
-    ├── logs/
-    └── .ada-status.json    # 멀티 세션 상태 파일
+    └── logs/
 ```
 
 ---
@@ -268,8 +268,10 @@ ai-dev-team/
 | `ada` | 대화형 모드 |
 | `ada setup [template]` | 템플릿 세팅 (web, lib, game, cli) |
 | `ada status` | 상태 확인 (버전 체크 포함) |
-| `ada config` | 역할별 AI 도구 설정 (대화형) |
-| `ada config show` | 현재 설정 보기 |
+| `ada config` | 설정 조회/변경 (대화형) |
+| `ada config list` | 현재 설정 보기 |
+| `ada config get <key>` | 설정 값 조회 |
+| `ada config set <key> <value>` | 설정 값 변경 |
 | `ada orchestrate` | AI 에이전트 자동 오케스트레이션 |
 | `ada upgrade` | 작업공간을 최신 버전으로 업그레이드 |
 | `ada upgrade --dry-run` | 변경 사항 미리보기 |
@@ -283,7 +285,9 @@ ai-dev-team/
 |--------|------|
 | `ada sprint create` | 새 스프린트 생성 |
 | `ada sprint add task-001 ...` | Task 추가 |
+| `ada sprint sync` | meta.md 상태 동기화 (Task 파일 반영) |
 | `ada sprint close` | 스프린트 종료 (작업 파일 archive/) |
+| `ada sprint close --auto` | 스프린트 자동 종료 (회고 기본값) |
 | `ada sprint close --clean` | 스프린트 종료 (작업 파일 삭제) |
 | `ada sprint close --keep-all` | 스프린트 종료 (파일 유지) |
 | `ada sprint list` | 스프린트 목록 |
@@ -304,6 +308,8 @@ ada developer codex
 ada reviewer gemini
 ada documenter claude
 ```
+
+tool을 생략하면 `ada.config.json` 기본값을 사용합니다.
 
 **지원 도구:** claude, codex, gemini, copilot
 
@@ -361,27 +367,7 @@ ada orchestrate qa_pass           # QA → Developer
 ada orchestrate documentation     # Documenter
 ```
 
-### 설정 관리
-
-```bash
-# 대화형 설정 모드
-ada config
-
-# 현재 설정 보기
-ada config show
-
-# 역할별 도구 설정
-ada config set developer gemini
-ada config set reviewer claude
-
-# 기본 도구 변경
-ada config set-default gemini
-
-# 설정 초기화
-ada config reset
-```
-
-**지원 도구:** claude, gemini, codex, copilot
+설정/도구 선택은 아래 `설정 관리` 섹션을 참고하세요.
 
 ---
 
@@ -537,15 +523,17 @@ ada sessions --watch
 ### 상태 파일
 
 ```
-ai-dev-team/.sessions/.ada-status.json
+ai-dev-team/.ada-status.json
 ```
 
 모든 세션이 이 파일을 통해 상태를 공유합니다.
 
 **구성:**
 - `activeSessions[]`: 실행 중인 세션
+- `pendingQuestions[]`: 대기 질문
+- `taskProgress{}`: Task 진행 상태
 - `notifications[]`: 세션 간 알림
-- (기존 Manager 관련 필드는 제거됨)
+- `locks{}`: 파일 잠금 상태
 
 ---
 
@@ -570,10 +558,15 @@ ada orchestrate auto
 ```
 
 **동작 방식:**
-1. Manager AI가 프로젝트 상태 분석 (스프린트, Task 상태)
-2. 다음 실행할 역할 결정
-3. 해당 역할 에이전트 실행
-4. 완료 후 다시 상태 분석 (무한 루프)
+1. 스프린트 상태 자동 동기화 (Task 파일 → meta.md)
+2. Manager AI가 프로젝트 상태 분석 (스프린트, Task 상태)
+3. 다음 실행할 역할 결정
+4. 해당 역할 에이전트 실행
+5. 완료 후 다시 상태 분석 (무한 루프)
+
+**주의:**
+- auto 모드는 manager 도구가 출력 캡처 가능한 CLI(claude/gemini)일 때만 동작합니다.
+- 연속 오류가 발생하면 안전 모드로 전환되어 재개 여부를 묻습니다.
 
 **Manager AI 판단 기준:**
 - plan.md 없음 → planner 실행
@@ -632,7 +625,6 @@ ada config
 - 🔧 역할별 도구 설정
 - ⚡ 기본 도구 변경
 - 🎯 빠른 설정 (프리셋)
-- 🔄 설정 초기화
 
 ### 프리셋
 
@@ -647,18 +639,20 @@ ada config
 
 ```bash
 # 개별 역할 설정
-ada config set developer gemini
-ada config set reviewer claude
+ada config set roles.developer gemini
+ada config set roles.reviewer claude
 
 # 기본 도구 변경
-ada config set-default gemini
+ada config set defaults.tool gemini
 
 # 설정 확인
-ada config show
+ada config list
 
-# 초기화
-ada config reset
+# 특정 값 조회
+ada config get roles.manager
 ```
+
+설정을 초기화하려면 `ai-dev-team/ada.config.json` 삭제 후 `ada config`를 실행하세요.
 
 ---
 
@@ -731,7 +725,7 @@ ada config reset
 - `ada sprint close` - 스프린트 종료 및 작업 파일 정리 (archive/clean/keep-all 옵션)
 - `ada sprint list` - 스프린트 목록 확인
 - `ada orchestrate` - AI 에이전트 자동 오케스트레이션
-- `ada config` - 역할별 AI 도구 설정
+- `ada config` - 설정 조회/변경
 
 ### 오케스트레이터 (v0.3.0+)
 

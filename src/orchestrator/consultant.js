@@ -3,6 +3,7 @@ import fs from 'fs-extra';
 import { executeAgentSession } from '../commands/run.js';
 import { getWorkspaceDir } from '../utils/files.js';
 import { getToolForRole } from '../utils/config.js';
+import { parseTaskMetadata } from '../utils/taskParser.js';
 
 /**
  * Manager AI에게 현재 상황에 대한 판단을 요청
@@ -117,7 +118,8 @@ function gatherProjectState(workspace) {
         taskFiles.forEach(taskFile => {
           const taskPath = path.join(tasksDir, taskFile);
           const content = fs.readFileSync(taskPath, 'utf-8');
-          const taskInfo = parseTaskFile(taskFile, content);
+          const taskInfo = parseTaskMetadata(content, taskFile);
+          taskInfo.status = normalizeTaskStatus(taskInfo.status);
           state.tasks.push(taskInfo);
         });
       }
@@ -133,7 +135,8 @@ function gatherProjectState(workspace) {
     backlogFiles.forEach(taskFile => {
       const taskPath = path.join(backlogDir, taskFile);
       const content = fs.readFileSync(taskPath, 'utf-8');
-      const taskInfo = parseTaskFile(taskFile, content);
+      const taskInfo = parseTaskMetadata(content, taskFile);
+      taskInfo.status = normalizeTaskStatus(taskInfo.status);
       state.backlogTasks.push(taskInfo);
     });
   }
@@ -144,28 +147,11 @@ function gatherProjectState(workspace) {
 /**
  * Task 파일 파싱
  */
-function parseTaskFile(filename, content) {
-  const taskId = filename.replace('.md', '');
-
-  // 상태 추출 (Status: IN_DEV, DONE, BACKLOG 등)
-  const statusMatch = content.match(/Status:\s*(BACKLOG|IN_DEV|DONE|REJECT)/i);
-  const status = statusMatch ? statusMatch[1].toUpperCase() : 'UNKNOWN';
-
-  // 우선순위 추출
-  const priorityMatch = content.match(/Priority:\s*(P[0-3])/i);
-  const priority = priorityMatch ? priorityMatch[1] : 'P2';
-
-  // 제목 추출 (첫 번째 # 헤더)
-  const titleMatch = content.match(/^#\s+(.+)$/m);
-  const title = titleMatch ? titleMatch[1] : taskId;
-
-  return {
-    id: taskId,
-    title,
-    status,
-    priority,
-    hasReviewReport: content.includes('## Review') || content.includes('PASS') || content.includes('REJECT')
-  };
+function normalizeTaskStatus(status) {
+  if (!status) return 'UNKNOWN';
+  const normalized = status.toString().trim().toUpperCase().replace(/[\s-]+/g, '_');
+  if (normalized === 'REJECTED') return 'REJECT';
+  return normalized;
 }
 
 /**
