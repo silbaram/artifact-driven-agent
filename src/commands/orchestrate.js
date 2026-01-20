@@ -1,7 +1,9 @@
 import chalk from 'chalk';
 import inquirer from 'inquirer';
+import path from 'path';
+import fs from 'fs-extra';
 import { executeAgentSession } from './run.js';
-import { getAvailableRoles } from '../utils/files.js';
+import { getAvailableRoles, getWorkspaceDir, isWorkspaceSetup } from '../utils/files.js';
 import { consultManager } from '../orchestrator/consultant.js';
 import { readStatus, getActiveSessions } from '../utils/sessionState.js';
 
@@ -60,13 +62,346 @@ export async function orchestrate(mode) {
 }
 
 /**
+ * 프로젝트 상태 체크 (Setup 여부, 핵심 문서, 스프린트 등)
+ */
+function checkProjectReadiness() {
+  const result = {
+    isReady: false,
+    setupComplete: false,
+    template: null,
+    hasProject: false,
+    hasPlan: false,
+    hasDecision: false,
+    currentSprint: null,
+    tasks: {
+      backlog: [],
+      inDev: [],
+      done: [],
+      reject: []
+    },
+    backlogTasks: [],
+    issues: [],
+    nextAction: null
+  };
+
+  // 1. Setup 확인
+  if (!isWorkspaceSetup()) {
+    result.issues.push({
+      type: 'error',
+      message: 'Setup이 완료되지 않았습니다',
+      solution: 'ada setup <template> 실행 (예: ada setup cli)'
+    });
+    return result;
+  }
+
+  const workspace = getWorkspaceDir();
+  result.setupComplete = true;
+
+  // 템플릿 확인
+  const templateFile = path.join(workspace, '.current-template');
+  if (fs.existsSync(templateFile)) {
+    result.template = fs.readFileSync(templateFile, 'utf-8').trim();
+  }
+
+  // roles 디렉토리 확인
+  const rolesDir = path.join(workspace, 'roles');
+  const roleFiles = fs.existsSync(rolesDir)
+    ? fs.readdirSync(rolesDir).filter(f => f.endsWith('.md'))
+    : [];
+
+  if (roleFiles.length === 0) {
+    result.issues.push({
+      type: 'error',
+      message: '역할(roles) 파일이 없습니다',
+      solution: 'ada setup <template> 재실행 또는 ada upgrade 실행'
+    });
+    return result;
+  }
+
+  // 2. 핵심 문서 확인
+  const artifactsDir = path.join(workspace, 'artifacts');
+
+  result.hasProject = fs.existsSync(path.join(artifactsDir, 'project.md'));
+  result.hasPlan = fs.existsSync(path.join(artifactsDir, 'plan.md'));
+  result.hasDecision = fs.existsSync(path.join(artifactsDir, 'decision.md'));
+
+  // 3. 스프린트 확인
+  const sprintsDir = path.join(artifactsDir, 'sprints');
+  if (fs.existsSync(sprintsDir)) {
+    const sprints = fs.readdirSync(sprintsDir, { withFileTypes: true })
+      .filter(d => d.isDirectory() && /^sprint-\d+$/.test(d.name))
+      .map(d => d.name)
+      .sort((a, b) => {
+        const numA = parseInt(a.split('-')[1]);
+        const numB = parseInt(b.split('-')[1]);
+        return numB - numA;
+      });
+
+    if (sprints.length > 0) {
+      const currentSprintName = sprints[0];
+      const sprintDir = path.join(sprintsDir, currentSprintName);
+
+      result.currentSprint = {
+        name: currentSprintName,
+        tasksDir: path.join(sprintDir, 'tasks')
+      };
+
+      // 스프린트 Task 읽기
+      const tasksDir = path.join(sprintDir, 'tasks');
+      if (fs.existsSync(tasksDir)) {
+        const taskFiles = fs.readdirSync(tasksDir)
+          .filter(f => f.endsWith('.md') && f.startsWith('task-'));
+
+        taskFiles.forEach(taskFile => {
+          const taskPath = path.join(tasksDir, taskFile);
+          const content = fs.readFileSync(taskPath, 'utf-8');
+          const taskInfo = parseTaskInfo(taskFile, content);
+
+          switch (taskInfo.status) {
+            case 'BACKLOG': result.tasks.backlog.push(taskInfo); break;
+            case 'IN_DEV': result.tasks.inDev.push(taskInfo); break;
+            case 'DONE': result.tasks.done.push(taskInfo); break;
+            case 'REJECT': result.tasks.reject.push(taskInfo); break;
+          }
+        });
+      }
+    }
+  }
+
+  // 4. Backlog 확인
+  const backlogDir = path.join(artifactsDir, 'backlog');
+  if (fs.existsSync(backlogDir)) {
+    const backlogFiles = fs.readdirSync(backlogDir)
+      .filter(f => f.endsWith('.md') && f.startsWith('task-'));
+
+    backlogFiles.forEach(taskFile => {
+      const taskPath = path.join(backlogDir, taskFile);
+      const content = fs.readFileSync(taskPath, 'utf-8');
+      result.backlogTasks.push(parseTaskInfo(taskFile, content));
+    });
+  }
+
+  // 5. 문제점 및 다음 액션 결정
+  if (!result.hasPlan) {
+    result.issues.push({
+      type: 'warning',
+      message: 'plan.md가 없습니다',
+      solution: 'Planner 역할로 기획을 먼저 수행하세요'
+    });
+    result.nextAction = { role: 'planner', reason: 'plan.md 작성 필요' };
+  } else if (!result.currentSprint) {
+    result.issues.push({
+      type: 'warning',
+      message: '활성 스프린트가 없습니다',
+      solution: 'ada sprint create 실행 후 Task 추가'
+    });
+    result.nextAction = { action: 'manual', reason: '스프린트 생성 필요 (ada sprint create)' };
+  } else {
+    const totalTasks = result.tasks.backlog.length + result.tasks.inDev.length +
+                       result.tasks.done.length + result.tasks.reject.length;
+
+    if (totalTasks === 0) {
+      result.issues.push({
+        type: 'warning',
+        message: '스프린트에 Task가 없습니다',
+        solution: 'ada sprint add <task-id> 실행'
+      });
+      result.nextAction = { action: 'manual', reason: 'Task 추가 필요 (ada sprint add)' };
+    } else if (result.tasks.reject.length > 0) {
+      result.nextAction = { role: 'developer', reason: `REJECT된 Task ${result.tasks.reject.length}개 수정 필요` };
+    } else if (result.tasks.backlog.length > 0 && result.tasks.inDev.length === 0) {
+      result.nextAction = { role: 'developer', reason: `BACKLOG Task ${result.tasks.backlog.length}개 개발 시작` };
+    } else if (result.tasks.inDev.length > 0) {
+      result.nextAction = { role: 'developer', reason: `IN_DEV Task ${result.tasks.inDev.length}개 개발 계속` };
+    } else if (result.tasks.done.length > 0) {
+      // DONE 중 리뷰 안된 것 확인
+      const needsReview = result.tasks.done.filter(t => !t.hasReviewReport);
+      if (needsReview.length > 0) {
+        result.nextAction = { role: 'reviewer', reason: `완료된 Task ${needsReview.length}개 리뷰 필요` };
+      } else {
+        result.nextAction = { role: 'documenter', reason: '모든 Task 완료, 문서화 진행' };
+      }
+    }
+  }
+
+  // 에러가 없으면 준비 완료
+  result.isReady = !result.issues.some(i => i.type === 'error');
+
+  return result;
+}
+
+/**
+ * Task 파일에서 정보 추출
+ */
+function parseTaskInfo(filename, content) {
+  const taskId = filename.replace('.md', '');
+
+  const statusMatch = content.match(/Status:\s*(BACKLOG|IN_DEV|DONE|REJECT)/i);
+  const status = statusMatch ? statusMatch[1].toUpperCase() : 'UNKNOWN';
+
+  const priorityMatch = content.match(/Priority:\s*(P[0-3])/i);
+  const priority = priorityMatch ? priorityMatch[1] : 'P2';
+
+  const titleMatch = content.match(/^#\s+(.+)$/m);
+  const title = titleMatch ? titleMatch[1] : taskId;
+
+  return {
+    id: taskId,
+    title,
+    status,
+    priority,
+    hasReviewReport: content.includes('## Review') || content.includes('PASS') || content.includes('REJECT')
+  };
+}
+
+/**
+ * 상태 리포트 출력
+ */
+function printStatusReport(status) {
+  console.log(chalk.cyan('\n📊 프로젝트 상태 분석'));
+  console.log(chalk.cyan('─'.repeat(50)));
+
+  // Setup 상태
+  if (status.setupComplete) {
+    const templateStr = status.template ? `(${status.template} 템플릿)` : '';
+    console.log(chalk.green(`  ✅ Setup 완료 ${chalk.gray(templateStr)}`));
+  } else {
+    console.log(chalk.red('  ❌ Setup 미완료'));
+  }
+
+  // 핵심 문서 상태
+  console.log('');
+  console.log(chalk.white('  📄 핵심 문서'));
+  console.log(`     ${status.hasProject ? chalk.green('✅') : chalk.yellow('⬜')} project.md`);
+  console.log(`     ${status.hasPlan ? chalk.green('✅') : chalk.yellow('⬜')} plan.md`);
+  console.log(`     ${status.hasDecision ? chalk.green('✅') : chalk.gray('⬜')} decision.md`);
+
+  // 스프린트 상태
+  console.log('');
+  if (status.currentSprint) {
+    const totalTasks = status.tasks.backlog.length + status.tasks.inDev.length +
+                       status.tasks.done.length + status.tasks.reject.length;
+    console.log(chalk.white(`  🏃 현재 스프린트: ${chalk.cyan(status.currentSprint.name)}`));
+    console.log(`     총 ${totalTasks}개 Task`);
+
+    if (status.tasks.backlog.length > 0) {
+      console.log(chalk.gray(`     ├─ BACKLOG: ${status.tasks.backlog.length}개`));
+      status.tasks.backlog.slice(0, 3).forEach(t => {
+        console.log(chalk.gray(`     │  └─ ${t.id}: ${t.title.substring(0, 30)}`));
+      });
+    }
+    if (status.tasks.inDev.length > 0) {
+      console.log(chalk.yellow(`     ├─ IN_DEV: ${status.tasks.inDev.length}개`));
+      status.tasks.inDev.forEach(t => {
+        console.log(chalk.yellow(`     │  └─ ${t.id}: ${t.title.substring(0, 30)}`));
+      });
+    }
+    if (status.tasks.done.length > 0) {
+      console.log(chalk.green(`     ├─ DONE: ${status.tasks.done.length}개`));
+    }
+    if (status.tasks.reject.length > 0) {
+      console.log(chalk.red(`     └─ REJECT: ${status.tasks.reject.length}개`));
+      status.tasks.reject.forEach(t => {
+        console.log(chalk.red(`        └─ ${t.id}: ${t.title.substring(0, 30)}`));
+      });
+    }
+  } else {
+    console.log(chalk.yellow('  🏃 활성 스프린트: 없음'));
+  }
+
+  // Backlog
+  if (status.backlogTasks.length > 0) {
+    console.log('');
+    console.log(chalk.white(`  📋 전체 Backlog: ${status.backlogTasks.length}개`));
+  }
+
+  // 문제점
+  if (status.issues.length > 0) {
+    console.log('');
+    console.log(chalk.white('  ⚠️  확인 필요'));
+    status.issues.forEach(issue => {
+      const icon = issue.type === 'error' ? chalk.red('❌') : chalk.yellow('⚡');
+      console.log(`     ${icon} ${issue.message}`);
+      console.log(chalk.gray(`        → ${issue.solution}`));
+    });
+  }
+
+  // 다음 액션 제안
+  console.log('');
+  console.log(chalk.cyan('─'.repeat(50)));
+  if (status.nextAction) {
+    if (status.nextAction.action === 'manual') {
+      console.log(chalk.yellow(`  💡 다음 단계: ${status.nextAction.reason}`));
+    } else {
+      console.log(chalk.green(`  💡 다음 단계: ${chalk.bold(status.nextAction.role)} 실행`));
+      console.log(chalk.gray(`     이유: ${status.nextAction.reason}`));
+    }
+  } else {
+    console.log(chalk.gray('  💡 다음 단계: 판단 불가'));
+  }
+  console.log('');
+}
+
+/**
  * 시나리오 0: 완전 자동화 (Auto Mode)
  * Manager AI가 상황을 판단하여 에이전트를 투입
- * + 개선: 회로 차단기, 에러 임계값, 세션 락킹
+ * + 개선: 상태 체크 → 확인 → 자동 루프
  */
 async function runAutoMode() {
-  console.log(chalk.cyan('\n🤖 완전 자동화 모드를 시작합니다.'));
-  console.log(chalk.gray('   파일 변경을 감시하고, Manager AI에게 주기적으로 자문을 구합니다.'));
+  console.log(chalk.cyan('\n🤖 완전 자동화 모드'));
+  console.log(chalk.gray('   프로젝트 상태를 분석합니다...\n'));
+
+  // 1. 프로젝트 상태 체크
+  const projectStatus = checkProjectReadiness();
+
+  // 2. 상태 리포트 출력
+  printStatusReport(projectStatus);
+
+  // 3. 준비 안됐으면 종료
+  if (!projectStatus.isReady) {
+    console.log(chalk.red('❌ 자동화를 시작할 수 없습니다.'));
+    console.log(chalk.gray('   위의 문제를 해결한 후 다시 시도해주세요.\n'));
+    return;
+  }
+
+  // 4. 수동 조치 필요하면 안내
+  if (projectStatus.nextAction?.action === 'manual') {
+    console.log(chalk.yellow('⚠️  자동화 전 수동 조치가 필요합니다.'));
+    console.log(chalk.gray(`   ${projectStatus.nextAction.reason}\n`));
+    return;
+  }
+
+  // 5. 사용자 확인
+  const { proceed } = await inquirer.prompt([{
+    type: 'list',
+    name: 'proceed',
+    message: '어떻게 진행할까요?',
+    choices: [
+      { name: '🚀 자동화 시작 (Manager AI가 계속 판단)', value: 'auto' },
+      { name: `▶️  ${projectStatus.nextAction?.role || 'developer'} 1회만 실행`, value: 'once' },
+      { name: '❌ 취소', value: 'cancel' }
+    ]
+  }]);
+
+  if (proceed === 'cancel') {
+    console.log(chalk.gray('\n취소되었습니다.'));
+    return;
+  }
+
+  if (proceed === 'once') {
+    // 1회만 실행
+    const role = projectStatus.nextAction?.role || 'developer';
+    const { getToolForRole } = await import('../utils/config.js');
+    const tool = getToolForRole(role);
+
+    console.log(chalk.cyan(`\n🚀 ${role} (${tool}) 실행`));
+    await executeAgentSession(role, tool, { headless: false });
+    console.log(chalk.green(`\n✓ ${role} 작업 완료`));
+    return;
+  }
+
+  // 6. 자동 모드 시작
+  console.log(chalk.cyan('\n🔄 자동화 루프를 시작합니다.'));
   console.log(chalk.gray('   (종료하려면 Ctrl+C를 누르세요)\n'));
 
   // 상태 관리를 위한 변수들
