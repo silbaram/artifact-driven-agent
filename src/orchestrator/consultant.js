@@ -196,8 +196,11 @@ function buildConsultationPrompt(context, projectState) {
   const tasksByStatus = {
     BACKLOG: projectState.tasks.filter(t => t.status === 'BACKLOG'),
     IN_DEV: projectState.tasks.filter(t => t.status === 'IN_DEV'),
+    IN_REVIEW: projectState.tasks.filter(t => t.status === 'IN_REVIEW'),
+    IN_QA: projectState.tasks.filter(t => t.status === 'IN_QA'),
     DONE: projectState.tasks.filter(t => t.status === 'DONE'),
-    REJECT: projectState.tasks.filter(t => t.status === 'REJECT')
+    REJECT: projectState.tasks.filter(t => t.status === 'REJECT'),
+    BLOCKED: projectState.tasks.filter(t => t.status === 'BLOCKED')
   };
 
   // Task 요약 생성
@@ -223,11 +226,14 @@ function buildConsultationPrompt(context, projectState) {
 ### 현재 스프린트
 ${projectState.currentSprint ? `
 - 이름: ${projectState.currentSprint.name}
-- Task 현황:
+  - Task 현황:
   - BACKLOG: ${tasksByStatus.BACKLOG.length}개
   - IN_DEV (개발 중): ${tasksByStatus.IN_DEV.length}개
+  - IN_REVIEW (리뷰 중): ${tasksByStatus.IN_REVIEW.length}개
+  - IN_QA (검증 중): ${tasksByStatus.IN_QA.length}개
   - DONE (완료): ${tasksByStatus.DONE.length}개
   - REJECT (반려): ${tasksByStatus.REJECT.length}개
+  - BLOCKED (차단): ${tasksByStatus.BLOCKED.length}개
 
 ### 스프린트 Task 목록
 ${taskSummary}
@@ -248,10 +254,13 @@ ${backlogSummary}
 2. **스프린트가 없으면** → wait (사용자가 \`ada sprint create\` 실행 필요)
 3. **BACKLOG Task가 있고 IN_DEV가 없으면** → developer 실행 (개발 시작)
 4. **IN_DEV Task가 있으면** → developer 실행 (개발 계속)
-5. **DONE Task가 있고 리뷰 안 된 것이 있으면** → reviewer 실행
-6. **REJECT Task가 있으면** → developer 실행 (수정 필요)
-7. **모든 Task가 DONE이고 리뷰 완료면** → documenter 실행 (문서화)
-8. **할 일이 없으면** → wait
+5. **IN_REVIEW Task가 있으면** → reviewer 실행
+6. **IN_QA Task가 있으면** → qa 실행
+7. **DONE Task가 있고 리뷰 안 된 것이 있으면** → reviewer 실행
+8. **REJECT Task가 있으면** → developer 실행 (수정 필요)
+9. **BLOCKED Task가 있으면** → ask_user (사용자 확인 필요)
+10. **모든 Task가 DONE이고 리뷰 완료면** → documenter 실행 (문서화)
+11. **할 일이 없으면** → wait
 
 ## 출력 형식
 

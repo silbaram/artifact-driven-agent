@@ -3,7 +3,8 @@ import path from 'path';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { getWorkspaceDir, isWorkspaceSetup } from '../utils/files.js';
-import { parseTaskMetadata } from '../utils/taskParser.js';
+import { syncSprint, findActiveSprint, updateSprintMeta } from '../utils/sprintUtils.js';
+import { normalizeTaskStatus } from '../utils/taskParser.js';
 
 /**
  * 스프린트 관리 명령어
@@ -131,29 +132,6 @@ async function createSprint(sprintsDir) {
 }
 
 /**
- * 현재 활성 스프린트 찾기
- */
-function findActiveSprint(sprintsDir) {
-  if (!fs.existsSync(sprintsDir)) return null;
-
-  const sprints = fs.readdirSync(sprintsDir).filter(d => {
-    return fs.statSync(path.join(sprintsDir, d)).isDirectory() && !d.startsWith('_');
-  });
-
-  for (const sprint of sprints) {
-    const metaPath = path.join(sprintsDir, sprint, 'meta.md');
-    if (fs.existsSync(metaPath)) {
-      const content = fs.readFileSync(metaPath, 'utf-8');
-      if (content.includes('상태 | active')) {
-        return sprint;
-      }
-    }
-  }
-
-  return null;
-}
-
-/**
  * Task 추가
  */
 async function addTasks(sprintsDir, taskIds) {
@@ -208,39 +186,6 @@ async function addTasks(sprintsDir, taskIds) {
   console.log('');
   console.log(chalk.cyan(`📊 ${addedCount}개 Task가 ${activeSprint}에 추가되었습니다.`));
   console.log('');
-}
-
-/**
- * 스프린트 동기화 (Task 파일 상태 → meta.md)
- */
-async function syncSprint(sprintsDir, silent = false) {
-  const activeSprint = findActiveSprint(sprintsDir);
-  if (!activeSprint) {
-    if (!silent) console.log(chalk.red('❌ 활성 스프린트가 없습니다.'));
-    return;
-  }
-
-  const sprintPath = path.join(sprintsDir, activeSprint);
-  const tasksDir = path.join(sprintPath, 'tasks');
-  const tasks = [];
-
-  if (fs.existsSync(tasksDir)) {
-    const taskFiles = fs.readdirSync(tasksDir).filter(f => f.endsWith('.md'));
-    
-    for (const file of taskFiles) {
-      const content = fs.readFileSync(path.join(tasksDir, file), 'utf-8');
-      const taskInfo = parseTaskMetadata(content, file);
-      tasks.push(taskInfo);
-    }
-  }
-
-  // meta.md 업데이트
-  updateSprintMeta(sprintPath, tasks);
-
-  if (!silent) {
-    console.log(chalk.green(`✅ ${activeSprint} 메타데이터 동기화 완료`));
-    console.log(chalk.gray(`   총 ${tasks.length}개 Task 상태 반영됨`));
-  }
 }
 
 /**
@@ -407,40 +352,6 @@ async function listSprints(sprintsDir) {
 }
 
 /**
- * sprint meta.md 업데이트
- */
-function updateSprintMeta(sprintPath, tasks) {
-  const metaPath = path.join(sprintPath, 'meta.md');
-  if (!fs.existsSync(metaPath)) return;
-  
-  let metaContent = fs.readFileSync(metaPath, 'utf-8');
-
-  // Task 목록 섹션 찾기
-  const taskSectionRegex = /## Task 목록\s*\n[\s\S]*?\n\n(?=##|$)/;
-
-  // 새로운 Task 목록 생성
-  let taskListContent = '## Task 목록\n\n';
-  taskListContent += '| Task | 제목 | 상태 | 우선순위 | 크기 |\n';
-  taskListContent += '|------|------|:----:|:--------:|:----:|\n';
-
-  for (const task of tasks) {
-    taskListContent += `| ${task.id} | ${task.title} | ${task.status} | ${task.priority} | ${task.size} |\n`;
-  }
-
-  taskListContent += '\n';
-
-  // 기존 Task 목록 섹션 교체
-  if (metaContent.match(taskSectionRegex)) {
-    metaContent = metaContent.replace(taskSectionRegex, taskListContent);
-  } else {
-    // Task 목록 섹션이 없으면 참고 섹션 앞에 추가
-    metaContent = metaContent.replace(/## 참고/, taskListContent + '## 참고');
-  }
-
-  fs.writeFileSync(metaPath, metaContent);
-}
-
-/**
  * 회고 데이터 자동 생성 (Auto Mode)
  */
 async function getRetrospectiveDataAuto(sprintPath) {
@@ -502,16 +413,32 @@ function getTaskStatusForRetrospective(sprintPath) {
   const metaPath = path.join(sprintPath, 'meta.md');
   const metaContent = fs.readFileSync(metaPath, 'utf-8');
   
-  // Task 목록 파싱
-  const taskMatches = [...metaContent.matchAll(/\|\s*(task-\d+)\s*\|[^\|]*\|\s*(\w+)\s*\|/gi)];
-  // 정규식 매칭이 대소문자 구분 없이 동작하도록 수정 (DONE, done 등)
-  
+  // Task 목록/요약 파싱
+  const taskLines = metaContent
+    .split('\n')
+    .filter(line => line.trim().toLowerCase().startsWith('| task-'));
+  const knownStatuses = new Set(['BACKLOG', 'IN_DEV', 'IN_REVIEW', 'IN_QA', 'DONE', 'REJECT', 'REJECTED', 'BLOCKED']);
+
   const completedTasks = [];
   const incompleteTasks = [];
 
-  taskMatches.forEach(m => {
-    const id = m[1];
-    const status = m[2].toUpperCase();
+  taskLines.forEach(line => {
+    const columns = line.split('|').map(col => col.trim()).filter(col => col.length > 0);
+    if (columns.length < 2) return;
+
+    const id = columns[0];
+    let status = null;
+
+    const candidate1 = normalizeTaskStatus(columns[1]);
+    if (knownStatuses.has(candidate1)) {
+      status = candidate1;
+    } else if (columns.length > 2) {
+      const candidate2 = normalizeTaskStatus(columns[2]);
+      if (knownStatuses.has(candidate2)) {
+        status = candidate2;
+      }
+    }
+
     if (status === 'DONE') {
       completedTasks.push(id);
     } else {

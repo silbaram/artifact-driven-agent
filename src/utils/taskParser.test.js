@@ -61,13 +61,9 @@ test('parseTaskMetadata - 영문 키 지원 여부 확인', (t) => {
 | Priority | P2 |
 `;
   const result = parseTaskMetadata(content, 'task-005.md');
-  
-  // 현재 구현에서는 한글 '상태'만 찾으므로 이는 실패하거나 기본값(BACKLOG)이 나올 것임.
-  // 이 테스트의 목적은 한계 확인 및 개선 필요성 판단임.
-  // assert.strictEqual(result.status, 'IN_DEV'); 
-  
-  // 현재 로직대로라면 기본값 'BACKLOG'가 나와야 함
-  assert.strictEqual(result.status, 'BACKLOG'); 
+
+  assert.strictEqual(result.status, 'IN_DEV');
+  assert.strictEqual(result.priority, 'P2');
 });
 
 test('parseTaskMetadata - 리뷰 리포트 존재 감지', (t) => {

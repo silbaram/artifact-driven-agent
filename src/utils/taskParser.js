@@ -40,7 +40,10 @@ export function parseTaskMetadata(content, filename) {
   const assignee = parseTableValue(content, ['담당', 'Assignee'], null) ??
     parseInlineValue(content, ['담당', 'Assignee']) ?? '-';
 
-  // 3. 추가 정보 (리뷰 리포트 존재 여부 추론 등)
+  // 3. Status Normalize
+  const normalizedStatus = normalizeTaskStatus(status);
+
+  // 4. 추가 정보 (리뷰 리포트 존재 여부 추론 등)
   // 간단히 내용에 '## Review' 등이 있는지 확인 (orchestrate.js 로직 반영)
   const hasReviewReport = content.includes('## Review') || 
                          content.includes('## QA') ||
@@ -49,12 +52,31 @@ export function parseTaskMetadata(content, filename) {
   return {
     id,
     title,
-    status,
+    status: normalizedStatus,
     priority,
     size,
     assignee,
     hasReviewReport
   };
+}
+
+/**
+ * Task 상태값 정규화
+ * @param {string} status 
+ */
+export function normalizeTaskStatus(status) {
+  if (!status) return 'UNKNOWN';
+  const upper = status.toString().toUpperCase().trim().replace(/[\s-]+/g, '_');
+  
+  // 별칭 처리
+  if (['IN_PROGRESS', 'PROCESSING', 'DOING', 'DEV', 'ACTIVE'].includes(upper)) return 'IN_DEV';
+  if (['IN_REVIEW', 'REVIEW', 'CODE_REVIEW', 'REVIEWING'].includes(upper)) return 'IN_REVIEW';
+  if (['IN_QA', 'QA', 'TEST', 'TESTING'].includes(upper)) return 'IN_QA';
+  if (['BLOCKED', 'BLOCK', 'ON_HOLD', 'HOLD'].includes(upper)) return 'BLOCKED';
+  if (['COMPLETED', 'FINISH', 'FINISHED', 'COMPLETE'].includes(upper)) return 'DONE';
+  if (['REJECTED', 'DENIED'].includes(upper)) return 'REJECT';
+  
+  return upper;
 }
 
 /**

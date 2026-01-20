@@ -7,6 +7,7 @@ import { getAvailableRoles, getWorkspaceDir, isWorkspaceSetup } from '../utils/f
 import { consultManager } from '../orchestrator/consultant.js';
 import { readStatus, getActiveSessions } from '../utils/sessionState.js';
 import { parseTaskMetadata } from '../utils/taskParser.js';
+import { syncSprint } from '../utils/sprintUtils.js';
 
 /**
  * [CLI] 오케스트레이션 명령어 핸들러
@@ -77,8 +78,11 @@ function checkProjectReadiness() {
     tasks: {
       backlog: [],
       inDev: [],
+      inReview: [],
+      inQa: [],
       done: [],
-      reject: []
+      reject: [],
+      blocked: []
     },
     backlogTasks: [],
     issues: [],
@@ -163,8 +167,11 @@ function checkProjectReadiness() {
 
           if (status === 'BACKLOG') result.tasks.backlog.push(taskInfo);
           else if (status === 'IN_DEV') result.tasks.inDev.push(taskInfo);
+          else if (status === 'IN_REVIEW') result.tasks.inReview.push(taskInfo);
+          else if (status === 'IN_QA') result.tasks.inQa.push(taskInfo);
           else if (status === 'DONE') result.tasks.done.push(taskInfo);
           else if (status === 'REJECTED' || status === 'REJECT') result.tasks.reject.push(taskInfo);
+          else if (status === 'BLOCKED') result.tasks.blocked.push(taskInfo);
           else result.tasks.backlog.push(taskInfo); // 기본값
         });
       }
@@ -201,7 +208,9 @@ function checkProjectReadiness() {
     result.nextAction = { action: 'manual', reason: '스프린트 생성 필요 (ada sprint create)' };
   } else {
     const totalTasks = result.tasks.backlog.length + result.tasks.inDev.length +
-                       result.tasks.done.length + result.tasks.reject.length;
+                       result.tasks.inReview.length + result.tasks.inQa.length +
+                       result.tasks.done.length + result.tasks.reject.length +
+                       result.tasks.blocked.length;
 
     if (totalTasks === 0) {
       result.issues.push({
@@ -210,8 +219,19 @@ function checkProjectReadiness() {
         solution: 'ada sprint add <task-id> 실행'
       });
       result.nextAction = { action: 'manual', reason: 'Task 추가 필요 (ada sprint add)' };
+    } else if (result.tasks.blocked.length > 0) {
+      result.issues.push({
+        type: 'warning',
+        message: `BLOCKED Task ${result.tasks.blocked.length}개 존재`,
+        solution: '차단 사유 확인 후 수동 조치 필요'
+      });
+      result.nextAction = { action: 'manual', reason: `BLOCKED Task ${result.tasks.blocked.length}개 해결 필요` };
     } else if (result.tasks.reject.length > 0) {
       result.nextAction = { role: 'developer', reason: `REJECT된 Task ${result.tasks.reject.length}개 수정 필요` };
+    } else if (result.tasks.inReview.length > 0) {
+      result.nextAction = { role: 'reviewer', reason: `IN_REVIEW Task ${result.tasks.inReview.length}개 리뷰 필요` };
+    } else if (result.tasks.inQa.length > 0) {
+      result.nextAction = { role: 'qa', reason: `IN_QA Task ${result.tasks.inQa.length}개 검증 필요` };
     } else if (result.tasks.backlog.length > 0 && result.tasks.inDev.length === 0) {
       result.nextAction = { role: 'developer', reason: `BACKLOG Task ${result.tasks.backlog.length}개 개발 시작` };
     } else if (result.tasks.inDev.length > 0) {
@@ -275,8 +295,17 @@ function printStatusReport(status) {
         console.log(chalk.yellow(`     │  └─ ${t.id}: ${t.title.substring(0, 30)}`));
       });
     }
+    if (status.tasks.inReview.length > 0) {
+      console.log(chalk.yellow(`     ├─ IN_REVIEW: ${status.tasks.inReview.length}개`));
+    }
+    if (status.tasks.inQa.length > 0) {
+      console.log(chalk.yellow(`     ├─ IN_QA: ${status.tasks.inQa.length}개`));
+    }
     if (status.tasks.done.length > 0) {
       console.log(chalk.green(`     ├─ DONE: ${status.tasks.done.length}개`));
+    }
+    if (status.tasks.blocked.length > 0) {
+      console.log(chalk.red(`     ├─ BLOCKED: ${status.tasks.blocked.length}개`));
     }
     if (status.tasks.reject.length > 0) {
       console.log(chalk.red(`     └─ REJECT: ${status.tasks.reject.length}개`));
@@ -423,7 +452,9 @@ async function runAutoMode() {
       }
 
       // 0. 상태 동기화 (Task 파일 → meta.md)
-      await syncSprintState();
+      const workspace = getWorkspaceDir();
+      const sprintsDir = path.join(workspace, 'artifacts', 'sprints');
+      await syncSprint(sprintsDir, true);
 
       // 1. 현재 상태 및 활성 세션 수집
       const status = readStatus();
@@ -615,74 +646,4 @@ function wait(ms) {
 
 function isAutomationCapableTool(tool) {
   return tool === 'claude' || tool === 'gemini';
-}
-
-/**
- * 스프린트 상태 동기화 (Orchestrator용)
- * Task 파일들의 상태를 읽어 meta.md를 최신화
- */
-async function syncSprintState() {
-  const workspace = getWorkspaceDir();
-  const sprintsDir = path.join(workspace, 'artifacts', 'sprints');
-
-  if (!fs.existsSync(sprintsDir)) return;
-
-  // 활성 스프린트 찾기
-  let activeSprint = null;
-  const sprints = fs.readdirSync(sprintsDir).filter(d => {
-    return fs.statSync(path.join(sprintsDir, d)).isDirectory() && !d.startsWith('_');
-  });
-
-  for (const sprint of sprints) {
-    const metaPath = path.join(sprintsDir, sprint, 'meta.md');
-    if (fs.existsSync(metaPath)) {
-      const content = fs.readFileSync(metaPath, 'utf-8');
-      if (content.includes('상태 | active')) {
-        activeSprint = sprint;
-        break;
-      }
-    }
-  }
-
-  if (!activeSprint) return;
-
-  const sprintPath = path.join(sprintsDir, activeSprint);
-  const tasksDir = path.join(sprintPath, 'tasks');
-  const metaPath = path.join(sprintPath, 'meta.md');
-
-  if (!fs.existsSync(tasksDir) || !fs.existsSync(metaPath)) return;
-
-  // Task 정보 수집
-  const tasks = [];
-  const taskFiles = fs.readdirSync(tasksDir).filter(f => f.endsWith('.md'));
-  
-  for (const file of taskFiles) {
-    const content = fs.readFileSync(path.join(tasksDir, file), 'utf-8');
-    tasks.push(parseTaskMetadata(content, file));
-  }
-
-  // meta.md 업데이트
-  let metaContent = fs.readFileSync(metaPath, 'utf-8');
-  
-  // Task 목록 섹션 찾기
-  const taskSectionRegex = /## Task 목록\s*\n[\s\S]*?\n\n(?=##|$)/;
-
-  // 새로운 Task 목록 생성
-  let taskListContent = '## Task 목록\n\n';
-  taskListContent += '| Task | 제목 | 상태 | 우선순위 | 크기 |\n';
-  taskListContent += '|------|------|:----:|:--------:|:----:|\n';
-
-  for (const task of tasks) {
-    taskListContent += `| ${task.id} | ${task.title} | ${task.status} | ${task.priority} | ${task.size} |\n`;
-  }
-  taskListContent += '\n';
-
-  if (metaContent.match(taskSectionRegex)) {
-    metaContent = metaContent.replace(taskSectionRegex, taskListContent);
-  } else {
-    metaContent = metaContent.replace(/## 참고/, taskListContent + '## 참고');
-  }
-
-  fs.writeFileSync(metaPath, metaContent);
-  // console.log(chalk.gray(`   (Sync: ${activeSprint} 상태 동기화됨)`)); 
 }

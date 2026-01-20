@@ -229,11 +229,12 @@ export function validateSprint(artifactsDir) {
     }
   });
 
-  if (content.includes('Task 요약')) {
-    logPass('Task 요약 섹션 존재');
+  const hasTaskSection = content.includes('Task 요약') || content.includes('Task 목록');
+  if (hasTaskSection) {
+    logPass('Task 섹션 존재');
     pass++;
   } else {
-    logWarn('Task 요약 섹션 미확인');
+    logWarn('Task 섹션 미확인');
     warn++;
   }
 
