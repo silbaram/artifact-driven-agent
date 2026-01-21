@@ -558,10 +558,27 @@ async function launchTool(tool, systemPrompt, promptFile, logMessage, options = 
 
   const config = commands[tool];
   let { cmd, args } = config;
+  let usePromptStdin = false;
+  let promptInput = null;
 
-  // captureOutput 모드일 때 Claude는 --print 옵션 필요
-  if (options.captureOutput && tool === 'claude') {
-    args = ['--print', '-p', '위 시스템 프롬프트의 지시에 따라 JSON으로 응답하세요.', '--system-prompt-file', promptFile];
+  if (options.captureOutput) {
+    // captureOutput 모드일 때 Claude는 --print 옵션 필요
+    if (tool === 'claude') {
+      args = ['--print', '-p', '위 시스템 프롬프트의 지시에 따라 JSON으로 응답하세요.', '--system-prompt-file', promptFile];
+    }
+
+    // codex exec는 프롬프트를 stdin으로 받는다
+    if (tool === 'codex') {
+      args = ['exec', '-'];
+      usePromptStdin = true;
+      promptInput = systemPrompt;
+    }
+
+    // gemini는 프롬프트 입력이 필요하므로 stdin으로 전달
+    if (tool === 'gemini') {
+      usePromptStdin = true;
+      promptInput = '위 시스템 프롬프트의 지시에 따라 JSON으로 응답하세요.';
+    }
   }
 
   // 도구 존재 확인 (Windows: where, Unix: which)
@@ -601,7 +618,9 @@ async function launchTool(tool, systemPrompt, promptFile, logMessage, options = 
       };
 
       // 캡처 모드에 따라 stdio 설정 변경
-      const stdioConfig = options.captureOutput ? ['ignore', 'pipe', 'pipe'] : 'inherit';
+      const stdioConfig = options.captureOutput
+        ? (usePromptStdin ? ['pipe', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe'])
+        : 'inherit';
 
       const child = spawn(cmd, args, {
         stdio: stdioConfig,
@@ -619,6 +638,12 @@ async function launchTool(tool, systemPrompt, promptFile, logMessage, options = 
         child.stderr.on('data', (data) => {
           capturedError += data.toString();
         });
+      }
+
+      if (options.captureOutput && usePromptStdin && child.stdin) {
+        const input = promptInput || systemPrompt;
+        child.stdin.write(input);
+        child.stdin.end();
       }
 
       child.on('close', (code) => {

@@ -412,7 +412,7 @@ async function runAutoMode() {
   const managerTool = getToolForRole('manager');
   if (!isAutomationCapableTool(managerTool)) {
     console.log(chalk.yellow(`\n⚠️  Manager 도구(${managerTool})는 자동 모드에서 출력 캡처가 불가능합니다.`));
-    console.log(chalk.gray('   auto 모드에서는 claude/gemini를 사용해주세요.'));
+    console.log(chalk.gray('   auto 모드에서는 claude/gemini/codex를 사용해주세요.'));
     console.log(chalk.gray('   예: ada config set roles.manager claude\n'));
     return;
   }
@@ -645,7 +645,7 @@ function wait(ms) {
 }
 
 function isAutomationCapableTool(tool) {
-  return tool === 'claude' || tool === 'gemini';
+  return tool === 'claude' || tool === 'gemini' || tool === 'codex';
 }
 
 /**

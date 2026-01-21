@@ -566,7 +566,7 @@ ada orchestrate auto
 5. 완료 후 다시 상태 분석 (무한 루프)
 
 **주의:**
-- auto 모드는 manager 도구가 출력 캡처 가능한 CLI(claude/gemini)일 때만 동작합니다.
+- auto 모드는 manager 도구가 출력 캡처 가능한 CLI(claude/gemini/codex)일 때만 동작합니다.
 - 연속 오류가 발생하면 안전 모드로 전환되어 재개 여부를 묻습니다.
 
 **Manager AI 판단 기준:**
