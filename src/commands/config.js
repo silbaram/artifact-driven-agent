@@ -9,8 +9,14 @@ export async function config(action, key, value) {
   const configPath = getConfigPath();
   const currentConfig = readConfig();
 
-  // 1. 설정 조회 (List)
-  if (!action || action === 'list') {
+  // 1. 인자 없이 실행 → 대화형 모드
+  if (!action) {
+    await runInteractiveSet(currentConfig);
+    return;
+  }
+
+  // 2. 설정 조회 (List/Show)
+  if (action === 'list' || action === 'show') {
     console.log(chalk.cyan('━'.repeat(60)));
     console.log(chalk.cyan.bold('⚙️  ADA Configuration'));
     console.log(chalk.gray(`   Path: ${configPath}`));

@@ -268,8 +268,9 @@ ai-dev-team/
 | `ada` | 대화형 모드 |
 | `ada setup [template]` | 템플릿 세팅 (web, lib, game, cli) |
 | `ada status` | 상태 확인 (버전 체크 포함) |
-| `ada config` | 설정 조회/변경 (대화형) |
-| `ada config list` | 현재 설정 보기 |
+| `ada config` | 설정 변경 (대화형) |
+| `ada config show` | 현재 설정 보기 |
+| `ada config list` | 현재 설정 보기 (show와 동일) |
 | `ada config get <key>` | 설정 값 조회 |
 | `ada config set <key> <value>` | 설정 값 변경 |
 | `ada orchestrate` | AI 에이전트 자동 오케스트레이션 |
@@ -646,7 +647,7 @@ ada config set roles.reviewer claude
 ada config set defaults.tool gemini
 
 # 설정 확인
-ada config list
+ada config show       # 또는 ada config list
 
 # 특정 값 조회
 ada config get roles.manager

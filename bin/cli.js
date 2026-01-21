@@ -94,7 +94,7 @@ program
 // Config command
 program
   .command('config [action] [key] [value]')
-  .description('설정 관리 (list, get <key>, set <key> <value>)')
+  .description('설정 조회/변경 (대화형), show, get <key>, set <key> <value>')
   .action(config);
 
 // Run command
