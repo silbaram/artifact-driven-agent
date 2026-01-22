@@ -574,10 +574,12 @@ async function launchTool(tool, systemPrompt, promptFile, logMessage, options = 
       promptInput = systemPrompt;
     }
 
-    // gemini는 프롬프트 입력이 필요하므로 stdin으로 전달
+    // gemini는 Stdin으로 프롬프트 전달 (에러 해결: No input provided via stdin)
     if (tool === 'gemini') {
+      const userPrompt = '위 시스템 프롬프트의 지시에 따라 JSON으로 응답하세요.';
+      args = ['-o', 'text'];
       usePromptStdin = true;
-      promptInput = '위 시스템 프롬프트의 지시에 따라 JSON으로 응답하세요.';
+      promptInput = userPrompt;
     }
   }
 
