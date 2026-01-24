@@ -131,17 +131,24 @@ async function handleRunAgent() {
     return;
   }
 
+  const roleChoices = roles.map(r => ({
+    name: `${getRoleDescription(r)} (설정: ${getToolForRole(r)})`,
+    value: r
+  }));
+  roleChoices.push(new inquirer.Separator());
+  roleChoices.push({ name: '🔙 뒤로가기', value: null });
+
   const { role } = await inquirer.prompt([
     {
       type: 'list',
+      name: 'role',
       message: '실행할 역할을 선택하세요:',
       pageSize: 10,
-      choices: roles.map(r => ({
-        name: `${getRoleDescription(r)} (설정: ${getToolForRole(r)})`,
-        value: r
-      }))
+      choices: roleChoices
     }
   ]);
+
+  if (!role) return;
 
   const configuredTool = getToolForRole(role);
   let selectedTool = configuredTool;
@@ -270,7 +277,6 @@ async function handleMonitorMenu() {
       { name: '🖥️  실시간 대시보드 (Dashboard)', value: 'dashboard' },
       { name: '📋 세션 목록 (Sessions)', value: 'sessions' },
       { name: '📜 최근 로그 (Logs)', value: 'logs' },
-      { name: '🧹 세션 정리 (Clean)', value: 'clean' },
       { name: '🔙 뒤로가기', value: 'back' }
     ]
   }]);
@@ -279,9 +285,29 @@ async function handleMonitorMenu() {
 
   if (subAction === 'status') await status();
   else if (subAction === 'dashboard') await monitor();
-  else if (subAction === 'sessions') await sessions({});
+  else if (subAction === 'sessions') await handleSessionsMenu();
   else if (subAction === 'logs') await logs();
-  else if (subAction === 'clean') await sessions({ clean: true });
+}
+
+/**
+ * 5-1. 세션 메뉴
+ */
+async function handleSessionsMenu() {
+  await sessions({});
+
+  const { nextAction } = await inquirer.prompt([{
+    type: 'list',
+    name: 'nextAction',
+    message: '세션 작업:',
+    choices: [
+      { name: '🧹 세션 정리 (Clean)', value: 'clean' },
+      { name: '🔙 뒤로가기', value: 'back' }
+    ]
+  }]);
+
+  if (nextAction === 'clean') {
+    await sessions({ clean: true });
+  }
 }
 
 /**

@@ -25,8 +25,7 @@ export async function sessions(options = {}) {
 
   // Clean 모드
   if (options.clean) {
-    const days = parseInt(options.days || '7', 10);
-    return cleanupCompletedSessions(days);
+    return cleanupCompletedSessions();
   }
 
   const sessionsDir = getSessionsDir();
@@ -579,9 +578,8 @@ async function watchSessions() {
 
 /**
  * 완료된 세션 정리
- * @param {number} days - 지정한 일수보다 오래된 세션만 정리
  */
-async function cleanupCompletedSessions(days = 7) {
+async function cleanupCompletedSessions() {
   const sessionsDir = getSessionsDir();
 
   if (!fs.existsSync(sessionsDir)) {
@@ -591,12 +589,9 @@ async function cleanupCompletedSessions(days = 7) {
 
   console.log('');
   console.log(chalk.cyan('━'.repeat(60)));
-  console.log(chalk.cyan.bold(`완료된 세션 정리 (${days}일 이전)`));
+  console.log(chalk.cyan.bold('완료된 세션 정리 (status: completed)'));
   console.log(chalk.cyan('━'.repeat(60)));
   console.log('');
-
-  const now = Date.now();
-  const cutoffTime = now - (days * 24 * 60 * 60 * 1000);
 
   const sessionDirs = fs.readdirSync(sessionsDir)
     .filter(f => fs.statSync(path.join(sessionsDir, f)).isDirectory())
@@ -621,26 +616,9 @@ async function cleanupCompletedSessions(days = 7) {
       // 세션 정보 읽기
       const session = JSON.parse(fs.readFileSync(sessionFile, 'utf-8'));
 
-      // 세션 시작 시간 파싱
-      let sessionTime;
-      if (session.startedAt) {
-        sessionTime = new Date(session.startedAt).getTime();
-      } else {
-        // session.json에 시간 정보가 없으면 디렉토리 생성 시간 사용
-        const stats = fs.statSync(sessionPath);
-        sessionTime = stats.birthtimeMs || stats.mtimeMs;
-      }
-
-      // cutoff 시간 이후면 건너뜀
-      if (sessionTime > cutoffTime) {
-        console.log(chalk.gray(`  ${sessionId}: ${days}일 이내 (유지)`));
-        skippedCount++;
-        continue;
-      }
-
       // 완료 상태가 아니면 건너뜀
-      if (session.status !== 'completed' && session.status !== 'error') {
-        console.log(chalk.yellow(`  ${sessionId}: 미완료 상태 (${session.status}) - 유지`));
+      if (session.status !== 'completed') {
+        console.log(chalk.yellow(`  ${sessionId}: 완료 아님 (${session.status || 'unknown'}) - 유지`));
         skippedCount++;
         continue;
       }

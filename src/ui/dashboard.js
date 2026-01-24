@@ -1,16 +1,18 @@
 import chalk from 'chalk';
 import path from 'path';
 import fs from 'fs-extra';
-import { getWorkspaceDir, isWorkspaceSetup } from '../utils/files.js';
+import { getLogsDir, getWorkspaceDir, isWorkspaceSetup } from '../utils/files.js';
 import { readStatus, getActiveSessions, getPendingQuestions } from '../utils/sessionState.js';
 import { parseTaskMetadata } from '../utils/taskParser.js';
-import { getToolForRole } from '../utils/config.js';
 
 /**
  * 대시보드 UI 구성 상수
  */
 const DASHBOARD_WIDTH = 80;
 const HALF_WIDTH = Math.floor(DASHBOARD_WIDTH / 2);
+const MAX_LOG_SESSIONS = 2;
+const MAX_LOG_LINES = 6;
+const MAX_LOG_BYTES = 8192;
 
 /**
  * 프로젝트 상태 정보 수집
@@ -29,6 +31,7 @@ export function gatherProjectState() {
       blocked: []
     },
     sessions: [],
+    sessionLogs: [],
     pendingQuestions: [],
     nextRecommendation: null
   };
@@ -48,6 +51,9 @@ export function gatherProjectState() {
 
   // 활성 세션
   result.sessions = getActiveSessions();
+
+  // 세션 로그 (실시간 요약)
+  result.sessionLogs = readSessionLogTails(result.sessions);
 
   // 대기 질문
   result.pendingQuestions = getPendingQuestions();
@@ -201,6 +207,75 @@ function truncate(str, maxLength) {
 }
 
 /**
+ * 로그 라인 색상 처리
+ */
+function colorizeLogLine(line) {
+  if (line.includes('[ERROR]')) return chalk.red(line);
+  if (line.includes('[WARN]')) return chalk.yellow(line);
+  if (line.includes('[INFO]')) return chalk.gray(line);
+  return line;
+}
+
+/**
+ * 세션 로그 테일 읽기 (최근 라인만)
+ */
+function readSessionLogTails(sessions) {
+  if (!sessions || sessions.length === 0) {
+    return [];
+  }
+
+  const logsDir = getLogsDir();
+  if (!fs.existsSync(logsDir)) {
+    return [];
+  }
+
+  const sortedSessions = sessions.slice().sort((a, b) => {
+    const aTime = new Date(a.startedAt || 0).getTime();
+    const bTime = new Date(b.startedAt || 0).getTime();
+    return bTime - aTime;
+  });
+
+  const sessionsToShow = sortedSessions.slice(0, MAX_LOG_SESSIONS);
+  const linesPerSession = Math.max(1, Math.floor(MAX_LOG_LINES / sessionsToShow.length));
+
+  return sessionsToShow.map(session => {
+    const logFile = path.join(logsDir, `${session.sessionId}.log`);
+    return {
+      sessionId: session.sessionId,
+      lines: readLogTail(logFile, linesPerSession)
+    };
+  });
+}
+
+/**
+ * 로그 파일의 마지막 부분 읽기
+ */
+function readLogTail(filePath, maxLines) {
+  if (!fs.existsSync(filePath)) {
+    return [];
+  }
+
+  try {
+    const stats = fs.statSync(filePath);
+    if (!stats.isFile() || stats.size === 0) {
+      return [];
+    }
+
+    const readSize = Math.min(stats.size, MAX_LOG_BYTES);
+    const buffer = Buffer.alloc(readSize);
+    const fd = fs.openSync(filePath, 'r');
+    fs.readSync(fd, buffer, 0, readSize, stats.size - readSize);
+    fs.closeSync(fd);
+
+    const content = buffer.toString('utf-8');
+    const lines = content.split(/\r?\n/).filter(Boolean);
+    return lines.slice(-maxLines);
+  } catch (error) {
+    return [];
+  }
+}
+
+/**
  * 경과 시간 계산
  */
 function getElapsedTime(startedAt) {
@@ -228,9 +303,6 @@ export function renderDashboard(state, statusMessage = '준비됨') {
   const innerWidth = DASHBOARD_WIDTH - 2;
   const leftPanelWidth = HALF_WIDTH - 1;
   const rightPanelWidth = DASHBOARD_WIDTH - leftPanelWidth - 3;
-
-  // 화면 지우기
-  process.stdout.write('\x1b[2J\x1b[H');
 
   // 상단 헤더
   lines.push(
@@ -291,7 +363,13 @@ export function renderDashboard(state, statusMessage = '준비됨') {
   );
 
   // 출력
-  console.log(lines.join('\n'));
+  const output = lines.join('\n');
+  if (process.stdout.isTTY) {
+    process.stdout.write('\x1b[2J\x1b[H');
+    process.stdout.write(output);
+  } else {
+    console.log(output);
+  }
 }
 
 /**
@@ -374,6 +452,28 @@ function renderSessionPanel(state, width) {
     lines.push(chalk.gray(' QUESTIONS: 없음'));
   }
 
+  lines.push('');
+  lines.push(chalk.white.bold(' LOGS'));
+
+  if (!state.sessionLogs || state.sessionLogs.length === 0) {
+    lines.push(chalk.gray(' (로그 없음)'));
+    return lines;
+  }
+
+  state.sessionLogs.forEach(sessionLog => {
+    lines.push(chalk.cyan(` ${truncate(sessionLog.sessionId, width - 2)}`));
+
+    if (!sessionLog.lines || sessionLog.lines.length === 0) {
+      lines.push(chalk.gray('  (로그 없음)'));
+      return;
+    }
+
+    sessionLog.lines.forEach(line => {
+      const trimmed = truncate(line, width - 2);
+      lines.push(colorizeLogLine(` ${trimmed}`));
+    });
+  });
+
   return lines;
 }
 
@@ -386,53 +486,22 @@ function renderQuickActions(width) {
   lines.push(chalk.white.bold(' QUICK ACTIONS'));
   lines.push('');
 
-  // 3열 레이아웃 - 숫자 키
-  const col1 = [
-    chalk.cyan('[1]') + ' 자동화 시작',
-    chalk.cyan('[2]') + ' 1회 실행 (추천)',
-    chalk.cyan('[3]') + ' planner'
-  ];
-
-  const col2 = [
-    chalk.cyan('[4]') + ' developer',
-    chalk.cyan('[5]') + ' reviewer',
-    chalk.cyan('[6]') + ' documenter'
-  ];
-
-  const col3 = [
-    chalk.cyan('[7]') + ' sprint list',
-    chalk.cyan('[8]') + ' sprint sync',
-    chalk.cyan('[9]') + ' config'
-  ];
-
-  const colWidth = Math.floor((width - 4) / 3);
-
-  for (let i = 0; i < 3; i++) {
-    const c1 = padText(' ' + (col1[i] || ''), colWidth);
-    const c2 = padText(col2[i] || '', colWidth);
-    const c3 = padText(col3[i] || '', colWidth);
-    lines.push(c1 + c2 + c3);
-  }
-
-  lines.push('');
-
   // 알파벳 키
   const alphaCol1 = [
-    chalk.yellow('[s]') + ' sessions',
-    chalk.yellow('[c]') + ' sprint create'
+    chalk.yellow('[s]') + ' sessions'
   ];
 
   const alphaCol2 = [
-    chalk.yellow('[l]') + ' logs',
-    chalk.yellow('[a]') + ' sprint add'
+    chalk.yellow('[l]') + ' logs'
   ];
 
   const alphaCol3 = [
-    chalk.yellow('[t]') + ' status',
-    chalk.yellow('[v]') + ' validate'
+    chalk.yellow('[t]') + ' status'
   ];
 
-  for (let i = 0; i < 2; i++) {
+  const colWidth = Math.floor((width - 4) / 3);
+  const rowCount = Math.max(alphaCol1.length, alphaCol2.length, alphaCol3.length);
+  for (let i = 0; i < rowCount; i++) {
     const c1 = padText(' ' + (alphaCol1[i] || ''), colWidth);
     const c2 = padText(alphaCol2[i] || '', colWidth);
     const c3 = padText(alphaCol3[i] || '', colWidth);
@@ -441,11 +510,8 @@ function renderQuickActions(width) {
 
   lines.push('');
   lines.push(
-    ' ' + chalk.cyan('[0]') + ' 새로고침  ' +
-    chalk.cyan('[q]') + ' 종료  ' +
-    chalk.cyan('[h]') + ' 도움말  ' +
-    chalk.cyan('[?]') + ' 질문  ' +
-    chalk.cyan('[o]') + ' 오케스트레이션'
+    ' ' + chalk.cyan('[q]') + ' 종료  ' +
+    chalk.cyan('[h]') + ' 도움말'
   );
 
   return lines;

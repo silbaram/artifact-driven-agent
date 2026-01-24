@@ -64,7 +64,6 @@ program
   .description('AI 실행 세션 목록')
   .option('-w, --watch', '실시간 모니터링 모드')
   .option('-c, --clean', '완료된 세션 정리')
-  .option('--days <days>', '지정한 일수보다 오래된 세션만 정리 (기본: 7일)', '7')
   .action(sessions);
 
 // Logs command
