@@ -16,7 +16,7 @@ import {
 import {
   registerSession,
   unregisterSession,
-  updateSessionStatus,
+  updateSessionDetails,
   getActiveSessions,
   getPendingQuestions
 } from '../utils/sessionState.js';
@@ -64,7 +64,8 @@ export async function executeAgentSession(role, tool, options = {}) {
     started_at: getTimestamp(),
     status: 'active'
   };
-  fs.writeFileSync(path.join(sessionDir, 'session.json'), JSON.stringify(sessionInfo, null, 2));
+  const sessionFile = path.join(sessionDir, 'session.json');
+  fs.writeFileSync(sessionFile, JSON.stringify(sessionInfo, null, 2));
 
   // 로그 헬퍼
   const logFile = path.join(logsDir, `${sessionId}.log`);
@@ -106,7 +107,16 @@ export async function executeAgentSession(role, tool, options = {}) {
     }
 
     // AI 도구 프로세스 실행
-    const output = await launchTool(tool, systemPrompt, promptFile, logMessage, options);
+    const handleSpawn = (child) => {
+      sessionInfo.pid = child.pid;
+      fs.writeFileSync(sessionFile, JSON.stringify(sessionInfo, null, 2));
+      updateSessionDetails(sessionId, { pid: child.pid });
+    };
+
+    const output = await launchTool(tool, systemPrompt, promptFile, logMessage, {
+      ...options,
+      onSpawn: handleSpawn
+    });
 
     // 정상 종료 처리
     sessionInfo.status = 'completed';
@@ -115,7 +125,7 @@ export async function executeAgentSession(role, tool, options = {}) {
     if (output) {
       sessionInfo.output = output;
     }
-    fs.writeFileSync(path.join(sessionDir, 'session.json'), JSON.stringify(sessionInfo, null, 2));
+    fs.writeFileSync(sessionFile, JSON.stringify(sessionInfo, null, 2));
     logMessage('INFO', '세션 종료');
 
     unregisterSession(sessionId);
@@ -128,7 +138,7 @@ export async function executeAgentSession(role, tool, options = {}) {
     // 에러 처리
     sessionInfo.status = 'error';
     sessionInfo.error = error.message;
-    fs.writeFileSync(path.join(sessionDir, 'session.json'), JSON.stringify(sessionInfo, null, 2));
+    fs.writeFileSync(sessionFile, JSON.stringify(sessionInfo, null, 2));
     logMessage('ERROR', error.message);
 
     unregisterSession(sessionId);
@@ -629,6 +639,10 @@ async function launchTool(tool, systemPrompt, promptFile, logMessage, options = 
         shell: true,
         env: envVars
       });
+
+      if (typeof options.onSpawn === 'function') {
+        options.onSpawn(child);
+      }
 
       let capturedOutput = '';
       let capturedError = '';

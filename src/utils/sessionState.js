@@ -1,6 +1,6 @@
 import fs from 'fs-extra';
 import path from 'path';
-import { getWorkspaceDir } from './files.js';
+import { getWorkspaceDir, getSessionsDir, getTimestamp } from './files.js';
 
 /**
  * .ada-status.json 파일 경로 반환
@@ -163,11 +163,18 @@ export function unregisterSession(sessionId) {
  * 세션 상태 업데이트
  */
 export function updateSessionStatus(sessionId, newStatus) {
+  return updateSessionDetails(sessionId, { status: newStatus });
+}
+
+/**
+ * 세션 메타데이터 업데이트
+ */
+export function updateSessionDetails(sessionId, updates = {}) {
   const status = readStatus();
 
   const session = status.activeSessions.find(s => s.sessionId === sessionId);
   if (session) {
-    session.status = newStatus;
+    Object.assign(session, updates);
     session.lastUpdate = new Date().toISOString();
     writeStatus(status);
   }
@@ -416,25 +423,91 @@ export function getPendingQuestions() {
 }
 
 /**
- * 좀비 세션 정리 (오래된 세션 제거)
+ * 좀비 세션 정리 (프로세스 종료/오래된 세션 제거)
  */
 export function cleanupZombieSessions(maxAgeMinutes = 60) {
   const status = readStatus();
   const now = Date.now();
 
-  const originalCount = status.activeSessions.length;
+  const removedSessions = [];
 
   status.activeSessions = status.activeSessions.filter(session => {
-    const age = now - new Date(session.startedAt).getTime();
-    return age < maxAgeMinutes * 60 * 1000;
+    const pidStatus = isProcessAlive(session.pid);
+    if (pidStatus === false) {
+      removedSessions.push({ sessionId: session.sessionId, reason: 'process' });
+      return false;
+    }
+    if (pidStatus === true) {
+      return true;
+    }
+
+    const startedAtMs = new Date(session.startedAt).getTime();
+    if (Number.isNaN(startedAtMs)) {
+      removedSessions.push({ sessionId: session.sessionId, reason: 'time' });
+      return false;
+    }
+
+    const age = now - startedAtMs;
+    if (age >= maxAgeMinutes * 60 * 1000) {
+      removedSessions.push({ sessionId: session.sessionId, reason: 'time' });
+      return false;
+    }
+
+    return true;
   });
 
-  const removedCount = originalCount - status.activeSessions.length;
+  if (removedSessions.length > 0) {
+    removedSessions.forEach(({ sessionId, reason }) => {
+      if (reason === 'process') {
+        markSessionFileAsError(sessionId, '프로세스 종료 감지로 정리됨');
+      } else {
+        markSessionFileAsError(sessionId, '오래된 세션 정리됨');
+      }
+    });
 
-  if (removedCount > 0) {
-    addNotificationInternal(status, 'info', 'system', `좀비 세션 ${removedCount}개 정리됨`);
+    addNotificationInternal(status, 'info', 'system', `좀비 세션 ${removedSessions.length}개 정리됨`);
     writeStatus(status);
   }
 
-  return removedCount;
+  return removedSessions.length;
+}
+
+function isProcessAlive(pid) {
+  const parsedPid = typeof pid === 'string' ? Number.parseInt(pid, 10) : pid;
+  if (!Number.isFinite(parsedPid) || parsedPid <= 0) {
+    return null;
+  }
+
+  try {
+    process.kill(parsedPid, 0);
+    return true;
+  } catch (error) {
+    if (error.code === 'EPERM') {
+      return true;
+    }
+    return false;
+  }
+}
+
+function markSessionFileAsError(sessionId, reason) {
+  const sessionsDir = getSessionsDir();
+  const sessionFile = path.join(sessionsDir, sessionId, 'session.json');
+  if (!fs.existsSync(sessionFile)) {
+    return;
+  }
+
+  try {
+    const session = JSON.parse(fs.readFileSync(sessionFile, 'utf-8'));
+    if (session.status && session.status !== 'active') {
+      return;
+    }
+    session.status = 'error';
+    session.error = reason;
+    if (!session.ended_at) {
+      session.ended_at = getTimestamp();
+    }
+    fs.writeFileSync(sessionFile, JSON.stringify(session, null, 2));
+  } catch (error) {
+    // 세션 파일 오류는 무시
+  }
 }
