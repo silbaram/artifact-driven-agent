@@ -74,6 +74,8 @@ export function gatherProjectState() {
 
       // Task 파싱
       const tasksDir = path.join(sprintDir, 'tasks');
+      const reviewReportsDir = path.join(sprintDir, 'review-reports');
+
       if (fs.existsSync(tasksDir)) {
         const taskFiles = fs.readdirSync(tasksDir)
           .filter(f => f.endsWith('.md') && f.startsWith('task-'));
@@ -82,6 +84,12 @@ export function gatherProjectState() {
           const taskPath = path.join(tasksDir, taskFile);
           const content = fs.readFileSync(taskPath, 'utf-8');
           const taskInfo = parseTaskMetadata(content, taskFile);
+
+          // 실제 review-reports 디렉토리에서 리뷰 리포트 파일 존재 여부 확인
+          const reviewReportPath = path.join(reviewReportsDir, taskFile);
+          if (fs.existsSync(reviewReportPath)) {
+            taskInfo.hasReviewReport = true;
+          }
 
           const status = taskInfo.status.toUpperCase();
           if (status === 'BACKLOG') result.tasks.backlog.push(taskInfo);

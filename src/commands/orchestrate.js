@@ -153,6 +153,8 @@ function checkProjectReadiness() {
 
       // 스프린트 Task 읽기
       const tasksDir = path.join(sprintDir, 'tasks');
+      const reviewReportsDir = path.join(sprintDir, 'review-reports');
+
       if (fs.existsSync(tasksDir)) {
         const taskFiles = fs.readdirSync(tasksDir)
           .filter(f => f.endsWith('.md') && f.startsWith('task-'));
@@ -161,6 +163,12 @@ function checkProjectReadiness() {
           const taskPath = path.join(tasksDir, taskFile);
           const content = fs.readFileSync(taskPath, 'utf-8');
           const taskInfo = parseTaskMetadata(content, taskFile);
+
+          // 실제 review-reports 디렉토리에서 리뷰 리포트 파일 존재 여부 확인
+          const reviewReportPath = path.join(reviewReportsDir, taskFile);
+          if (fs.existsSync(reviewReportPath)) {
+            taskInfo.hasReviewReport = true;
+          }
 
           // status 정규화 (대소문자 무시)
           const status = taskInfo.status.toUpperCase();

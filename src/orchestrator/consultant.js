@@ -111,6 +111,8 @@ function gatherProjectState(workspace) {
 
       // 스프린트 Task 파일들 읽기
       const tasksDir = path.join(sprintDir, 'tasks');
+      const reviewReportsDir = path.join(sprintDir, 'review-reports');
+
       if (fs.existsSync(tasksDir)) {
         const taskFiles = fs.readdirSync(tasksDir)
           .filter(f => f.endsWith('.md') && f.startsWith('task-'));
@@ -120,6 +122,13 @@ function gatherProjectState(workspace) {
           const content = fs.readFileSync(taskPath, 'utf-8');
           const taskInfo = parseTaskMetadata(content, taskFile);
           taskInfo.status = normalizeTaskStatus(taskInfo.status);
+
+          // 실제 review-reports 디렉토리에서 리뷰 리포트 파일 존재 여부 확인
+          const reviewReportPath = path.join(reviewReportsDir, taskFile);
+          if (fs.existsSync(reviewReportPath)) {
+            taskInfo.hasReviewReport = true;
+          }
+
           state.tasks.push(taskInfo);
         });
       }
