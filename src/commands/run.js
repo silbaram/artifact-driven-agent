@@ -75,6 +75,46 @@ export async function executeAgentSession(role, tool, options = {}) {
     // 옵션에 따라 콘솔 출력 제어 가능 (현재는 항상 출력)
   };
 
+  // 세션 정리 함수 (시그널 핸들러 및 정상 종료에서 공통 사용)
+  let isCleanedUp = false;
+  const cleanupSession = (status, reason = null) => {
+    if (isCleanedUp) return;
+    isCleanedUp = true;
+
+    sessionInfo.status = status;
+    sessionInfo.ended_at = getTimestamp();
+    if (reason) {
+      sessionInfo.termination_reason = reason;
+    }
+
+    try {
+      fs.writeFileSync(sessionFile, JSON.stringify(sessionInfo, null, 2));
+      logMessage('INFO', `세션 종료 (${status}): ${reason || '정상 종료'}`);
+      unregisterSession(sessionId);
+    } catch (err) {
+      // 정리 중 에러는 무시 (이미 종료 중)
+    }
+  };
+
+  // 시그널 핸들러 (Ctrl+C 등 강제 종료 시 세션 정리)
+  const handleSignal = (signal) => {
+    logMessage('INFO', `시그널 수신: ${signal}`);
+    cleanupSession('completed', `사용자 종료 (${signal})`);
+
+    // 핸들러 제거 후 기본 동작 수행
+    process.removeListener('SIGINT', handleSignal);
+    process.removeListener('SIGTERM', handleSignal);
+
+    // 짧은 지연 후 종료 (파일 쓰기 완료 대기)
+    setTimeout(() => {
+      process.exit(0);
+    }, 100);
+  };
+
+  // 시그널 핸들러 등록
+  process.on('SIGINT', handleSignal);
+  process.on('SIGTERM', handleSignal);
+
   try {
     logMessage('INFO', `세션 시작: role=${role}, tool=${tool}, template=${template}`);
 
@@ -118,31 +158,40 @@ export async function executeAgentSession(role, tool, options = {}) {
       onSpawn: handleSpawn
     });
 
+    // 시그널 핸들러 제거
+    process.removeListener('SIGINT', handleSignal);
+    process.removeListener('SIGTERM', handleSignal);
+
     // 정상 종료 처리
-    sessionInfo.status = 'completed';
-    sessionInfo.ended_at = getTimestamp();
-    // 캡처된 출력이 있으면 세션 정보에 저장 (선택 사항)
     if (output) {
       sessionInfo.output = output;
     }
-    fs.writeFileSync(sessionFile, JSON.stringify(sessionInfo, null, 2));
-    logMessage('INFO', '세션 종료');
-
-    unregisterSession(sessionId);
-    logMessage('INFO', `세션 해제: ${sessionId}`);
+    cleanupSession('completed');
 
     // 캡처된 출력 반환
     return { ...sessionInfo, output };
 
   } catch (error) {
-    // 에러 처리
-    sessionInfo.status = 'error';
-    sessionInfo.error = error.message;
-    fs.writeFileSync(sessionFile, JSON.stringify(sessionInfo, null, 2));
-    logMessage('ERROR', error.message);
+    // 시그널 핸들러 제거
+    process.removeListener('SIGINT', handleSignal);
+    process.removeListener('SIGTERM', handleSignal);
 
-    unregisterSession(sessionId);
-    logMessage('INFO', `세션 해제 (에러): ${sessionId}`);
+    // 에러가 사용자 종료(exit code 비정상)인 경우 completed로 처리
+    const isUserTermination = error.message && (
+      error.message.includes('exited with code 130') ||  // SIGINT
+      error.message.includes('exited with code 143') ||  // SIGTERM
+      error.message.includes('exited with code 1')       // 일반 종료
+    );
+
+    if (isUserTermination) {
+      cleanupSession('completed', '사용자 종료');
+      return { ...sessionInfo };
+    }
+
+    // 실제 에러 처리
+    sessionInfo.error = error.message;
+    cleanupSession('error', error.message);
+    logMessage('ERROR', error.message);
 
     throw error;
   }
