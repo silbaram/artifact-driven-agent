@@ -31,7 +31,7 @@ export async function sessions(options = {}) {
 
   const sessionsDir = getSessionsDir();
 
-  // 좀비 세션 정리 (60분 이상 된 세션)
+  // 좀비 세션 정리 (비활성/오래된 세션)
   const removedCount = cleanupZombieSessions(60);
 
   console.log('');
@@ -41,7 +41,7 @@ export async function sessions(options = {}) {
   console.log('');
 
   if (removedCount > 0) {
-    console.log(chalk.yellow(`좀비 세션 ${removedCount}개 정리됨 (60분 이상 경과)`));
+    console.log(chalk.yellow(`좀비 세션 ${removedCount}개 정리됨 (비활성/오래됨)`));
     console.log('');
   }
 
@@ -510,7 +510,7 @@ async function watchSessions() {
 
       // 30초마다 좀비 세션 정리 (2초 × 15 = 30초)
       if (tickCount % 15 === 0) {
-        const removedCount = cleanupZombieSessions(60); // 60분 이상 된 세션 제거
+        const removedCount = cleanupZombieSessions(60); // 비활성/오래된 세션 제거
         if (removedCount > 0) {
           lastUpdate = `${new Date().toLocaleTimeString('ko-KR')} (좀비 세션 ${removedCount}개 정리됨)`;
         }

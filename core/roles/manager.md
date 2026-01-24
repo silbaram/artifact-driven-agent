@@ -308,7 +308,10 @@ ada sprint close -f     # 미완료 Task 있어도 강제 종료
 ### 5.4 세션 정리
 
 ```bash
-# 좀비 세션 정리
+# 좀비 세션 정리 (프로세스 종료 감지 포함)
+ada sessions
+
+# 오래된 완료 세션 정리
 ada sessions --clean
 
 # 특정 세션 강제 종료

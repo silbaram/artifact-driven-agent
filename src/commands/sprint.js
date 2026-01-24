@@ -2,11 +2,13 @@ import fs from 'fs-extra';
 import path from 'path';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
-import { getWorkspaceDir, isWorkspaceSetup, getTimestamp } from '../utils/files.js';
+import { getWorkspaceDir, isWorkspaceSetup } from '../utils/files.js';
+import { syncSprint, findActiveSprint, updateSprintMeta } from '../utils/sprintUtils.js';
+import { normalizeTaskStatus } from '../utils/taskParser.js';
 
 /**
  * 스프린트 관리 명령어
- * @param {string} action - create / add / close / list
+ * @param {string} action - create / add / close / list / sync
  * @param {Array} args - 추가 인자
  */
 export default async function sprint(action, ...args) {
@@ -26,6 +28,9 @@ export default async function sprint(action, ...args) {
     case 'add':
       await addTasks(sprintsDir, args);
       break;
+    case 'sync':
+      await syncSprint(sprintsDir);
+      break;
     case 'close':
       await closeSprint(sprintsDir, args);
       break;
@@ -38,7 +43,9 @@ export default async function sprint(action, ...args) {
       console.log(chalk.cyan('사용법:'));
       console.log(chalk.gray('  ada sprint create              - 새 스프린트 생성'));
       console.log(chalk.gray('  ada sprint add task-001 ...    - Task 추가'));
+      console.log(chalk.gray('  ada sprint sync                - meta.md 상태 동기화'));
       console.log(chalk.gray('  ada sprint close               - 스프린트 종료 (작업 파일 archive)'));
+      console.log(chalk.gray('  ada sprint close --auto        - 스프린트 자동 종료 (회고 기본값)'));
       console.log(chalk.gray('  ada sprint close --clean       - 스프린트 종료 (작업 파일 삭제)'));
       console.log(chalk.gray('  ada sprint close --keep-all    - 스프린트 종료 (파일 유지)'));
       console.log(chalk.gray('  ada sprint list                - 스프린트 목록'));
@@ -125,29 +132,6 @@ async function createSprint(sprintsDir) {
 }
 
 /**
- * 현재 활성 스프린트 찾기
- */
-function findActiveSprint(sprintsDir) {
-  if (!fs.existsSync(sprintsDir)) return null;
-
-  const sprints = fs.readdirSync(sprintsDir).filter(d => {
-    return fs.statSync(path.join(sprintsDir, d)).isDirectory() && !d.startsWith('_');
-  });
-
-  for (const sprint of sprints) {
-    const metaPath = path.join(sprintsDir, sprint, 'meta.md');
-    if (fs.existsSync(metaPath)) {
-      const content = fs.readFileSync(metaPath, 'utf-8');
-      if (content.includes('상태 | active')) {
-        return sprint;
-      }
-    }
-  }
-
-  return null;
-}
-
-/**
  * Task 추가
  */
 async function addTasks(sprintsDir, taskIds) {
@@ -173,8 +157,7 @@ async function addTasks(sprintsDir, taskIds) {
   }
 
   let addedCount = 0;
-  const addedTasks = [];
-
+  
   for (const taskId of taskIds) {
     const taskFile = `${taskId}.md`;
     const sourcePath = path.join(backlogPath, taskFile);
@@ -194,18 +177,11 @@ async function addTasks(sprintsDir, taskIds) {
     fs.copyFileSync(sourcePath, destPath);
     addedCount++;
 
-    // Task 메타정보 파싱
-    const taskContent = fs.readFileSync(sourcePath, 'utf-8');
-    const taskInfo = parseTaskMetadata(taskContent, taskId);
-    addedTasks.push(taskInfo);
-
     console.log(chalk.green(`✅ ${taskId} 추가됨`));
   }
 
-  // meta.md 업데이트
-  if (addedTasks.length > 0) {
-    updateSprintMeta(sprintPath, addedTasks);
-  }
+  // meta.md 업데이트 (Sync 호출)
+  await syncSprint(sprintsDir, true);
 
   console.log('');
   console.log(chalk.cyan(`📊 ${addedCount}개 Task가 ${activeSprint}에 추가되었습니다.`));
@@ -215,7 +191,7 @@ async function addTasks(sprintsDir, taskIds) {
 /**
  * 스프린트 종료
  * @param {string} sprintsDir - 스프린트 디렉토리
- * @param {Array} args - 옵션 (--clean, --keep-all)
+ * @param {Array} args - 옵션 (--clean, --keep-all, --auto)
  */
 async function closeSprint(sprintsDir, args = []) {
   const activeSprint = findActiveSprint(sprintsDir);
@@ -230,6 +206,10 @@ async function closeSprint(sprintsDir, args = []) {
   // 옵션 파싱
   const hasClean = args.includes('--clean');
   const hasKeepAll = args.includes('--keep-all');
+  const isAuto = args.includes('--auto');
+
+  // 종료 전 마지막 동기화
+  await syncSprint(sprintsDir, true);
 
   // meta.md 업데이트 (active → completed)
   let metaContent = fs.readFileSync(metaPath, 'utf-8');
@@ -246,7 +226,14 @@ async function closeSprint(sprintsDir, args = []) {
   console.log(chalk.cyan('📝 스프린트 회고 작성'));
   console.log(chalk.gray('━'.repeat(50)));
 
-  const retrospectiveData = await promptRetrospective(sprintPath);
+  let retrospectiveData;
+  if (isAuto) {
+    console.log(chalk.gray('🤖 자동 모드: 기본값으로 회고 작성'));
+    retrospectiveData = await getRetrospectiveDataAuto(sprintPath);
+  } else {
+    retrospectiveData = await promptRetrospective(sprintPath);
+  }
+  
   createRetrospective(sprintPath, activeSprint, today, retrospectiveData);
 
   console.log('');
@@ -322,21 +309,6 @@ async function closeSprint(sprintsDir, args = []) {
   console.log('');
   console.log(chalk.green(`✅ ${activeSprint}가 종료되었습니다!`));
   console.log('');
-
-  // 정리 결과 안내
-  if (hasKeepAll) {
-    console.log(chalk.gray('📁 모든 파일이 유지되었습니다.'));
-  } else if (hasClean) {
-    console.log(chalk.gray('📁 작업 파일이 삭제되었습니다. (docs/ 문서만 유지)'));
-  } else {
-    console.log(chalk.gray('📁 작업 파일이 archive/에 보관되었습니다.'));
-  }
-
-  console.log('');
-  console.log(chalk.cyan('다음 단계:'));
-  console.log(chalk.gray(`   1. ${activeSprint}/docs/ 문서 확인`));
-  console.log(chalk.gray(`   2. ada sprint create로 다음 스프린트 시작`));
-  console.log('');
 }
 
 /**
@@ -380,77 +352,25 @@ async function listSprints(sprintsDir) {
 }
 
 /**
- * Task 파일에서 메타정보 파싱
+ * 회고 데이터 자동 생성 (Auto Mode)
  */
-function parseTaskMetadata(content, taskId) {
-  const lines = content.split('\n');
-
-  // 제목 파싱 (첫 줄: # TASK-NNN: [Task 이름])
-  const titleMatch = lines[0].match(/^#\s*TASK-\d+:\s*(.+)$/);
-  const title = titleMatch ? titleMatch[1].trim() : '제목 없음';
-
-  // 메타 테이블 파싱
-  const statusMatch = content.match(/\|\s*상태\s*\|\s*([^\|]+)\s*\|/);
-  const priorityMatch = content.match(/\|\s*우선순위\s*\|\s*([^\|]+)\s*\|/);
-  const sizeMatch = content.match(/\|\s*크기\s*\|\s*([^\|]+)\s*\|/);
-
-  const status = statusMatch ? statusMatch[1].trim().split('/')[0].trim() : 'BACKLOG';
-  const priority = priorityMatch ? priorityMatch[1].trim().split('/')[0].trim() : 'P1';
-  const size = sizeMatch ? sizeMatch[1].trim().split('/')[0].trim() : 'M';
+async function getRetrospectiveDataAuto(sprintPath) {
+  const { completedTasks, incompleteTasks } = getTaskStatusForRetrospective(sprintPath);
 
   return {
-    id: taskId,
-    title,
-    status,
-    priority,
-    size
+    completedTasks,
+    incompleteTasks,
+    keep: '자동 완료됨',
+    problem: '-',
+    try: '-'
   };
-}
-
-/**
- * sprint meta.md 업데이트
- */
-function updateSprintMeta(sprintPath, tasks) {
-  const metaPath = path.join(sprintPath, 'meta.md');
-  let metaContent = fs.readFileSync(metaPath, 'utf-8');
-
-  // Task 목록 섹션 찾기
-  const taskSectionRegex = /## Task 목록\s*\n[\s\S]*?\n\n(?=##|$)/;
-
-  // 새로운 Task 목록 생성
-  let taskListContent = '## Task 목록\n\n';
-  taskListContent += '| Task | 제목 | 상태 | 우선순위 | 크기 |\n';
-  taskListContent += '|------|------|:----:|:--------:|:----:|\n';
-
-  for (const task of tasks) {
-    taskListContent += `| ${task.id} | ${task.title} | ${task.status} | ${task.priority} | ${task.size} |\n`;
-  }
-
-  taskListContent += '\n';
-
-  // 기존 Task 목록 섹션 교체
-  if (metaContent.match(taskSectionRegex)) {
-    metaContent = metaContent.replace(taskSectionRegex, taskListContent);
-  } else {
-    // Task 목록 섹션이 없으면 참고 섹션 앞에 추가
-    metaContent = metaContent.replace(/## 참고/, taskListContent + '## 참고');
-  }
-
-  fs.writeFileSync(metaPath, metaContent);
 }
 
 /**
  * 회고 작성 프롬프트
  */
 async function promptRetrospective(sprintPath) {
-  // meta.md에서 Task 정보 읽기
-  const metaPath = path.join(sprintPath, 'meta.md');
-  const metaContent = fs.readFileSync(metaPath, 'utf-8');
-  
-  // Task 목록 파싱
-  const taskMatches = [...metaContent.matchAll(/\|\s*(task-\d+)\s*\|[^\|]*\|\s*(\w+)\s*\|/g)];
-  const completedTasks = taskMatches.filter(m => m[2] === 'DONE').map(m => m[1]);
-  const incompleteTasks = taskMatches.filter(m => m[2] !== 'DONE').map(m => m[1]);
+  const { completedTasks, incompleteTasks } = getTaskStatusForRetrospective(sprintPath);
 
   console.log('');
   console.log(chalk.white(`완료된 Task: ${completedTasks.length}개`));
@@ -483,6 +403,50 @@ async function promptRetrospective(sprintPath) {
     incompleteTasks,
     ...answers
   };
+}
+
+/**
+ * 회고를 위한 Task 상태 분류 헬퍼
+ */
+function getTaskStatusForRetrospective(sprintPath) {
+  // meta.md에서 Task 정보 읽기
+  const metaPath = path.join(sprintPath, 'meta.md');
+  const metaContent = fs.readFileSync(metaPath, 'utf-8');
+  
+  // Task 목록/요약 파싱
+  const taskLines = metaContent
+    .split('\n')
+    .filter(line => line.trim().toLowerCase().startsWith('| task-'));
+  const knownStatuses = new Set(['BACKLOG', 'IN_DEV', 'IN_REVIEW', 'IN_QA', 'DONE', 'REJECT', 'REJECTED', 'BLOCKED']);
+
+  const completedTasks = [];
+  const incompleteTasks = [];
+
+  taskLines.forEach(line => {
+    const columns = line.split('|').map(col => col.trim()).filter(col => col.length > 0);
+    if (columns.length < 2) return;
+
+    const id = columns[0];
+    let status = null;
+
+    const candidate1 = normalizeTaskStatus(columns[1]);
+    if (knownStatuses.has(candidate1)) {
+      status = candidate1;
+    } else if (columns.length > 2) {
+      const candidate2 = normalizeTaskStatus(columns[2]);
+      if (knownStatuses.has(candidate2)) {
+        status = candidate2;
+      }
+    }
+
+    if (status === 'DONE') {
+      completedTasks.push(id);
+    } else {
+      incompleteTasks.push(id);
+    }
+  });
+
+  return { completedTasks, incompleteTasks };
 }
 
 /**
