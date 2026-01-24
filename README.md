@@ -273,7 +273,7 @@ ai-dev-team/
 | `ada config list` | 현재 설정 보기 (show와 동일) |
 | `ada config get <key>` | 설정 값 조회 |
 | `ada config set <key> <value>` | 설정 값 변경 |
-| `ada orchestrate` | AI 에이전트 자동 오케스트레이션 |
+| `ada orchestrate` | AI 에이전트 가이드 오케스트레이션 |
 | `ada upgrade` | 작업공간을 최신 버전으로 업그레이드 |
 | `ada upgrade --dry-run` | 변경 사항 미리보기 |
 | `ada upgrade --rollback` | 이전 백업으로 롤백 |
@@ -540,36 +540,38 @@ ai-dev-team/.ada-status.json
 
 ## 🤖 오케스트레이터
 
-오케스트레이터는 여러 AI 에이전트를 자동으로 순차/조건부 실행하는 기능입니다.
+오케스트레이터는 여러 AI 에이전트를 자동으로 순차/조건부 실행하는 기능입니다. v0.3.5부터는 사용자의 안전한 제어를 위해 **반자동(Human-in-the-Loop)** 방식으로 동작합니다.
 
 ### 실행 모드
 
 | 모드 | 설명 | 실행 순서 |
 |------|------|----------|
-| `auto` | Manager AI가 상황 판단 | 자동 결정 |
+| `guided` | **매니저 가이드 (제안 → 승인)** | AI 제안 후 사용자 결정 |
 | `sprint_routine` | 스프린트 루틴 | Planner → Developer → Reviewer |
 | `feature_impl` | 기능 구현 | Developer → Reviewer |
 | `qa_pass` | QA 패스 | QA → Developer (버그 시) |
 | `documentation` | 문서화 | Documenter |
 
-### 완전 자동화 모드 (auto)
+### 매니저 가이드 모드 (guided)
 
 ```bash
-ada orchestrate auto
+ada orchestrate guided
 ```
 
 **동작 방식:**
 1. 스프린트 상태 자동 동기화 (Task 파일 → meta.md)
 2. Manager AI가 프로젝트 상태 분석 (스프린트, Task 상태)
-3. 다음 실행할 역할 결정
-4. 해당 역할 에이전트 실행
-5. 완료 후 다시 상태 분석 (무한 루프)
+3. **다음 실행할 역할 제안**: AI가 이유와 함께 역할을 제안함
+4. **사용자 결정**: 승인(Approve), 수정(Modify), 건너뛰기(Skip), 종료(Exit) 중 선택
+5. 사용자가 승인한 역할의 에이전트 실행
+6. 완료 후 다시 상태 분석 (루프 반복)
 
-**주의:**
-- auto 모드는 manager 도구가 출력 캡처 가능한 CLI(claude/gemini/codex)일 때만 동작합니다.
-- 연속 오류가 발생하면 안전 모드로 전환되어 재개 여부를 묻습니다.
+**특징:**
+- AI가 독단적으로 파일을 수정하거나 실행하지 않습니다.
+- 모든 결정 단계에서 사용자의 컨펌을 거치므로 안전합니다.
+- Manager 도구가 출력 캡처 가능한 CLI(claude/gemini/codex)일 때 최적으로 동작합니다.
 
-**Manager AI 판단 기준:**
+**Manager AI 제안 기준:**
 - plan.md 없음 → planner 실행
 - 스프린트 없음 → 대기 (사용자가 `ada sprint create` 필요)
 - BACKLOG Task 있음 → developer 실행
@@ -730,10 +732,10 @@ ada config get roles.manager
 
 ### 오케스트레이터 (v0.3.0+)
 
-**이전:** 수동으로 각 역할 개별 실행
+**이전:** 수동으로 각 역할 개별 실행 또는 완전 자동화(v0.3.0 초기)
 
-**현재:**
-- Manager AI가 프로젝트 상태를 분석하고 다음 역할 자동 결정
+**현재 (v0.3.5+):**
+- **매니저 가이드 모드(Guided Mode)**: Manager AI가 상황을 분석하고 다음 역할을 **제안**하며, 사용자의 **승인** 후 실행 (Human-in-the-Loop)
 - 시나리오별 파이프라인 실행 (sprint_routine, feature_impl 등)
 - 역할별 AI 도구 설정 지원 (claude, gemini, codex, copilot)
 

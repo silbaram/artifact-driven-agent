@@ -26,7 +26,7 @@ export async function orchestrate(mode) {
       name: 'mode',
       message: '실행할 오케스트레이션 모드를 선택하세요:',
       choices: [
-        { name: '🤖 완전 자동화 모드 (Manager AI가 판단)', value: 'auto' },
+        { name: '🤝 매니저 가이드 모드 (AI 제안 → 사용자 승인)', value: 'guided' },
         { name: '🏃 스프린트 루틴 (Planner → Developer → Reviewer)', value: 'sprint_routine' },
         { name: '✨ 기능 구현 (Developer → Reviewer)', value: 'feature_impl' },
         { name: '🧪 QA 패스 (QA → Developer)', value: 'qa_pass' },
@@ -38,8 +38,12 @@ export async function orchestrate(mode) {
 
   try {
     switch (mode) {
+      case 'guided':
+        await runGuidedMode();
+        break;
       case 'auto':
-        await runAutoMode();
+        console.log(chalk.yellow('⚠️  \'auto\' 모드는 \'guided\' 모드로 변경되었습니다.'));
+        await runGuidedMode();
         break;
       case 'sprint_routine':
         await runSprintRoutine();
@@ -359,13 +363,12 @@ function printStatusReport(status) {
 }
 
 /**
- * 시나리오 0: 완전 자동화 (Auto Mode)
- * Manager AI가 상황을 판단하여 에이전트를 투입
- * + 개선: 상태 체크 → 확인 → 자동 루프
+ * 시나리오 0: 매니저 가이드 모드 (Guided Mode)
+ * Manager AI가 상황을 판단하여 제안하고, 사용자가 승인하면 실행
  */
-async function runAutoMode() {
-  console.log(chalk.cyan('\n🤖 완전 자동화 모드'));
-  console.log(chalk.gray('   프로젝트 상태를 분석합니다...\n'));
+async function runGuidedMode() {
+  console.log(chalk.cyan('\n🤝 매니저 가이드 모드'));
+  console.log(chalk.gray('   프로젝트 상태를 분석하고 AI가 다음 작업을 제안합니다.\n'));
 
   // 1. 프로젝트 상태 체크
   const projectStatus = checkProjectReadiness();
@@ -375,14 +378,14 @@ async function runAutoMode() {
 
   // 3. 준비 안됐으면 종료
   if (!projectStatus.isReady) {
-    console.log(chalk.red('❌ 자동화를 시작할 수 없습니다.'));
+    console.log(chalk.red('❌ 가이드 모드를 시작할 수 없습니다.'));
     console.log(chalk.gray('   위의 문제를 해결한 후 다시 시도해주세요.\n'));
     return;
   }
 
   // 4. 수동 조치 필요하면 안내
   if (projectStatus.nextAction?.action === 'manual') {
-    console.log(chalk.yellow('⚠️  자동화 전 수동 조치가 필요합니다.'));
+    console.log(chalk.yellow('⚠️  시작 전 수동 조치가 필요합니다.'));
     console.log(chalk.gray(`   ${projectStatus.nextAction.reason}\n`));
     return;
   }
@@ -393,7 +396,7 @@ async function runAutoMode() {
     name: 'proceed',
     message: '어떻게 진행할까요?',
     choices: [
-      { name: '🚀 자동화 시작 (Manager AI가 계속 판단)', value: 'auto' },
+      { name: '🚀 가이드 모드 시작', value: 'guided' },
       { name: `▶️  ${projectStatus.nextAction?.role || 'developer'} 1회만 실행`, value: 'once' },
       { name: '❌ 취소', value: 'cancel' }
     ]
@@ -419,14 +422,14 @@ async function runAutoMode() {
 
   const managerTool = getToolForRole('manager');
   if (!isAutomationCapableTool(managerTool)) {
-    console.log(chalk.yellow(`\n⚠️  Manager 도구(${managerTool})는 자동 모드에서 출력 캡처가 불가능합니다.`));
-    console.log(chalk.gray('   auto 모드에서는 claude/gemini/codex를 사용해주세요.'));
+    console.log(chalk.yellow(`\n⚠️  Manager 도구(${managerTool})는 가이드 모드에서 출력 캡처가 불가능합니다.`));
+    console.log(chalk.gray('   가이드 모드에서는 claude/gemini/codex를 사용해주세요.'));
     console.log(chalk.gray('   예: ada config set roles.manager claude\n'));
     return;
   }
 
-  // 6. 자동 모드 시작
-  console.log(chalk.cyan('\n🔄 자동화 루프를 시작합니다.'));
+  // 6. 가이드 모드 루프 시작
+  console.log(chalk.cyan('\n🔄 가이드 루프를 시작합니다.'));
   console.log(chalk.gray('   (종료하려면 Ctrl+C를 누르세요)\n'));
 
   // 상태 관리를 위한 변수들
@@ -445,7 +448,7 @@ async function runAutoMode() {
         const { resume } = await inquirer.prompt([{
           type: 'confirm',
           name: 'resume',
-          message: '안전 모드입니다. 자동화를 다시 시작할까요?',
+          message: '안전 모드입니다. 다시 시작할까요?',
           default: false
         }]);
 
@@ -455,7 +458,7 @@ async function runAutoMode() {
           continue;
         }
 
-        console.log(chalk.green('자동화를 재개합니다.'));
+        console.log(chalk.green('재개합니다.'));
         safeMode = false;
       }
 
@@ -477,13 +480,56 @@ async function runAutoMode() {
 
       // 2. Manager에게 자문
       console.log(chalk.gray('\n🤔 Manager에게 다음 행동을 물어보는 중...'));
-      const decision = await consultManager(context);
+      let decision = await consultManager(context);
 
       // 2-1. 판단 실패 처리
       if (!decision) {
         console.log(chalk.yellow('   (판단 보류/실패 - 5초 후 재시도)'));
         await wait(5000);
         continue;
+      }
+
+      // [변경] 사용자 승인 단계 추가 (Human-in-the-loop)
+      // ask_user가 아닌 경우(실행/대기)에만 사용자에게 확인
+      if (decision.action === 'run_agent' || decision.action === 'wait') {
+        console.log(chalk.cyan(`\n🤖 Manager의 제안:`));
+        console.log(`   ${chalk.bold('Action')}: ${decision.action}`);
+        if (decision.role) console.log(`   ${chalk.bold('Role')}:   ${decision.role}`);
+        console.log(`   ${chalk.bold('Reason')}: ${decision.reason}`);
+
+        const { userChoice } = await inquirer.prompt([{
+          type: 'list',
+          name: 'userChoice',
+          message: 'Manager의 제안을 승인하시겠습니까?',
+          choices: [
+            { name: '✅ 승인 (진행)', value: 'approve' },
+            { name: '✏️  변경 (직접 선택)', value: 'modify' },
+            { name: '⏸️  대기 (건너뛰기)', value: 'skip' },
+            { name: '❌ 종료', value: 'exit' }
+          ]
+        }]);
+
+        if (userChoice === 'exit') {
+          console.log(chalk.gray('오케스트레이션을 종료합니다.'));
+          process.exit(0);
+        } else if (userChoice === 'skip') {
+          console.log(chalk.gray('   제안을 건너뛰고 5초 후 다시 분석합니다.'));
+          await wait(5000);
+          continue;
+        } else if (userChoice === 'modify') {
+          const { newRole } = await inquirer.prompt([{
+            type: 'list',
+            name: 'newRole',
+            message: '실행할 역할을 선택하세요:',
+            choices: ['planner', 'developer', 'reviewer', 'documenter', 'qa', 'improver', 'wait']
+          }]);
+
+          if (newRole === 'wait') {
+            decision = { action: 'wait', reason: '사용자 요청으로 대기' };
+          } else {
+            decision = { action: 'run_agent', role: newRole, reason: '사용자 수동 선택' };
+          }
+        }
       }
 
       // 3. 회로 차단기 (Circuit Breaker) 점검
