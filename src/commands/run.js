@@ -101,14 +101,16 @@ export async function executeAgentSession(role, tool, options = {}) {
     logMessage('INFO', `시그널 수신: ${signal}`);
     cleanupSession('completed', `사용자 종료 (${signal})`);
 
-    // 핸들러 제거 후 기본 동작 수행
+    // 핸들러 제거
     process.removeListener('SIGINT', handleSignal);
     process.removeListener('SIGTERM', handleSignal);
 
-    // 짧은 지연 후 종료 (파일 쓰기 완료 대기)
-    setTimeout(() => {
-      process.exit(0);
-    }, 100);
+    // exitOnSignal 옵션이 false가 아니면 프로세스 종료 (기본값: true)
+    if (options.exitOnSignal !== false) {
+      setTimeout(() => {
+        process.exit(0);
+      }, 100);
+    }
   };
 
   // 시그널 핸들러 등록
@@ -663,6 +665,15 @@ async function launchTool(tool, systemPrompt, promptFile, logMessage, options = 
           console.log(chalk.green('━'.repeat(60)));
           console.log('');
           console.log(chalk.gray(`시스템 프롬프트: ${relativePromptPath}`));
+          console.log('');
+        } else if (config.automation === 'manual') {
+          console.log(chalk.yellow('━'.repeat(60)));
+          console.log(chalk.yellow.bold('⚠️  수동 설정이 필요합니다'));
+          console.log(chalk.yellow('━'.repeat(60)));
+          console.log('');
+          console.log('CLI가 실행되면 아래 명령어를 복사해서 입력하세요:');
+          console.log('');
+          console.log(chalk.bgWhite.black.bold(` ${config.instruction} `));
           console.log('');
         }
         console.log(chalk.green(`✓ ${tool} 실행 중...`));

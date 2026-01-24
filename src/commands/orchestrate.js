@@ -592,7 +592,7 @@ async function runGuidedMode() {
         console.log(chalk.cyan(`\n🚀 ${role} (${tool}) 실행 시작`));
         
         // 실제 에이전트 실행
-        await executeAgentSession(role, tool, { headless: false });
+        await executeAgentSession(role, tool, { headless: false, exitOnSignal: false });
         
         console.log(chalk.green(`✓ ${role} 작업 완료`));
         
