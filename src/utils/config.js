@@ -16,7 +16,6 @@ const DEFAULT_CONFIG = {
     architect: 'claude',
     developer: 'claude',
     reviewer: 'claude',
-    qa: 'claude',
     improver: 'claude',
     documenter: 'claude'
   }

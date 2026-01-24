@@ -6,7 +6,6 @@ export { validate } from './commands/validate.js';
 export { sessions } from './commands/sessions.js';
 export { logs } from './commands/logs.js';
 export { run } from './commands/run.js';
-export { orchestrate } from './commands/orchestrate.js';
 export { config } from './commands/config.js';
 export { interactive } from './commands/interactive.js';
 

@@ -98,7 +98,8 @@ export async function sessions(options = {}) {
     activeTasks.forEach(([taskId, info]) => {
       const progress = info.progress || 0;
       const progressBar = '#'.repeat(Math.floor(progress / 10)) + '-'.repeat(10 - Math.floor(progress / 10));
-      console.log(`  ${taskId}: ${progressBar} ${progress}% (${info.status})`);
+      const normalizedStatus = info.status === 'IN_QA' ? 'IN_REVIEW' : info.status;
+      console.log(`  ${taskId}: ${progressBar} ${progress}% (${normalizedStatus})`);
       if (info.assignee) {
         console.log(chalk.gray(`    담당: ${info.assignee}`));
       }
@@ -394,15 +395,15 @@ async function watchSessions() {
           const statusColors = {
             'IN_DEV': chalk.blue,
             'IN_REVIEW': chalk.yellow,
-            'IN_QA': chalk.magenta,
             'READY': chalk.gray,
             'IN_SPRINT': chalk.cyan
           };
 
-          const statusColor = statusColors[task.status] || chalk.white;
+          const normalizedStatus = task.status === 'IN_QA' ? 'IN_REVIEW' : task.status;
+          const statusColor = statusColors[normalizedStatus] || chalk.white;
 
           console.log(chalk.white(`  ${taskId}: ${progressBar} ${progress}%`));
-          console.log(chalk.gray(`  상태: ${statusColor(task.status)} ${task.assignee ? `| 담당: ${task.assignee}` : ''}`));
+          console.log(chalk.gray(`  상태: ${statusColor(normalizedStatus)} ${task.assignee ? `| 담당: ${task.assignee}` : ''}`));
 
           if (task.note) {
             console.log(chalk.gray(`  메모: ${task.note}`));

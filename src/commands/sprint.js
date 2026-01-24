@@ -417,7 +417,7 @@ function getTaskStatusForRetrospective(sprintPath) {
   const taskLines = metaContent
     .split('\n')
     .filter(line => line.trim().toLowerCase().startsWith('| task-'));
-  const knownStatuses = new Set(['BACKLOG', 'IN_DEV', 'IN_REVIEW', 'IN_QA', 'DONE', 'REJECT', 'REJECTED', 'BLOCKED']);
+  const knownStatuses = new Set(['BACKLOG', 'IN_DEV', 'IN_REVIEW', 'DONE', 'REJECT', 'REJECTED', 'BLOCKED']);
 
   const completedTasks = [];
   const incompleteTasks = [];

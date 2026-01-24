@@ -1,6 +1,5 @@
 import chalk from 'chalk';
 import { executeAgentSession } from '../commands/run.js';
-import { orchestrate } from '../commands/orchestrate.js';
 import { config } from '../commands/config.js';
 import sprint from '../commands/sprint.js';
 import { sessions } from '../commands/sessions.js';
@@ -18,11 +17,6 @@ import { answerQuestion, getPendingQuestions } from '../utils/sessionState.js';
  * Quick Action 정의
  */
 export const QUICK_ACTIONS = {
-  '1': {
-    label: '자동화 시작',
-    description: 'orchestrate auto 실행',
-    handler: runAutoOrchestrate
-  },
   '2': {
     label: '1회 실행 (추천)',
     description: '추천 역할 1회 실행',
@@ -118,21 +112,8 @@ export const QUICK_ACTIONS = {
     label: 'validate',
     description: '문서 검증',
     handler: runValidate
-  },
-  'o': {
-    label: 'orchestrate',
-    description: '오케스트레이션 모드 선택',
-    handler: runOrchestrateMenu
   }
 };
-
-/**
- * 자동화 오케스트레이션 실행
- */
-async function runAutoOrchestrate() {
-  console.log(chalk.cyan('\n자동화 모드로 전환합니다...\n'));
-  await orchestrate('auto');
-}
 
 /**
  * 추천 역할 1회 실행
@@ -278,14 +259,6 @@ async function runValidate() {
 }
 
 /**
- * 오케스트레이션 모드 선택
- */
-async function runOrchestrateMenu() {
-  console.log('');
-  await orchestrate();  // 모드 없이 호출하면 선택 메뉴 표시
-}
-
-/**
  * 도움말 표시
  */
 async function showHelp() {
@@ -294,8 +267,7 @@ async function showHelp() {
   console.log(chalk.cyan.bold(' ADA UI Mode 도움말'));
   console.log(chalk.cyan('━'.repeat(60)));
   console.log('');
-  console.log(chalk.white.bold(' 숫자 키 (역할/자동화):'));
-  console.log('   1 - 자동화 시작 (Manager AI가 계속 판단)');
+  console.log(chalk.white.bold(' 숫자 키 (역할):'));
   console.log('   2 - 추천 역할 1회 실행');
   console.log('   3 - Planner 역할 실행');
   console.log('   4 - Developer 역할 실행');
@@ -312,7 +284,6 @@ async function showHelp() {
   console.log('   c - 새 스프린트 생성');
   console.log('   a - 스프린트에 Task 추가');
   console.log('   v - 문서 검증');
-  console.log('   o - 오케스트레이션 모드 선택');
   console.log('');
   console.log(chalk.white.bold(' 기타 키:'));
   console.log('   0, r - 화면 새로고침');

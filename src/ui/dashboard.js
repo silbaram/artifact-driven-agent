@@ -24,7 +24,6 @@ export function gatherProjectState() {
       backlog: [],
       inDev: [],
       inReview: [],
-      inQa: [],
       done: [],
       reject: [],
       blocked: []
@@ -95,7 +94,6 @@ export function gatherProjectState() {
           if (status === 'BACKLOG') result.tasks.backlog.push(taskInfo);
           else if (status === 'IN_DEV') result.tasks.inDev.push(taskInfo);
           else if (status === 'IN_REVIEW') result.tasks.inReview.push(taskInfo);
-          else if (status === 'IN_QA') result.tasks.inQa.push(taskInfo);
           else if (status === 'DONE') result.tasks.done.push(taskInfo);
           else if (status === 'REJECTED' || status === 'REJECT') result.tasks.reject.push(taskInfo);
           else if (status === 'BLOCKED') result.tasks.blocked.push(taskInfo);
@@ -125,10 +123,6 @@ function determineNextAction(state) {
 
   if (state.tasks.inReview.length > 0) {
     return { role: 'reviewer', reason: `IN_REVIEW ${state.tasks.inReview.length}개 리뷰` };
-  }
-
-  if (state.tasks.inQa.length > 0) {
-    return { role: 'qa', reason: `IN_QA ${state.tasks.inQa.length}개 테스트` };
   }
 
   if (state.tasks.backlog.length > 0 && state.tasks.inDev.length === 0) {

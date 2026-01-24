@@ -44,9 +44,7 @@ export function parseTaskMetadata(content, filename) {
   const normalizedStatus = normalizeTaskStatus(status);
 
   // 4. 추가 정보 (리뷰 리포트 존재 여부 추론 등)
-  // 간단히 내용에 '## Review' 등이 있는지 확인 (orchestrate.js 로직 반영)
-  const hasReviewReport = content.includes('## Review') || 
-                         content.includes('## QA') ||
+  const hasReviewReport = content.includes('## Review') ||
                          content.includes('리뷰 결과');
 
   return {
@@ -71,7 +69,7 @@ export function normalizeTaskStatus(status) {
   // 별칭 처리
   if (['IN_PROGRESS', 'PROCESSING', 'DOING', 'DEV', 'ACTIVE'].includes(upper)) return 'IN_DEV';
   if (['IN_REVIEW', 'REVIEW', 'CODE_REVIEW', 'REVIEWING'].includes(upper)) return 'IN_REVIEW';
-  if (['IN_QA', 'QA', 'TEST', 'TESTING'].includes(upper)) return 'IN_QA';
+  if (['IN_QA', 'QA', 'TEST', 'TESTING'].includes(upper)) return 'IN_REVIEW';
   if (['BLOCKED', 'BLOCK', 'ON_HOLD', 'HOLD'].includes(upper)) return 'BLOCKED';
   if (['COMPLETED', 'FINISH', 'FINISHED', 'COMPLETE'].includes(upper)) return 'DONE';
   if (['REJECTED', 'DENIED'].includes(upper)) return 'REJECT';

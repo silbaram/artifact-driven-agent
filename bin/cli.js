@@ -8,7 +8,6 @@ import { validate } from '../src/commands/validate.js';
 import { sessions } from '../src/commands/sessions.js';
 import { logs } from '../src/commands/logs.js';
 import { run } from '../src/commands/run.js';
-import { orchestrate } from '../src/commands/orchestrate.js';
 import { config } from '../src/commands/config.js';
 import { interactive } from '../src/commands/interactive.js';
 import { upgrade } from '../src/commands/upgrade.js';
@@ -94,12 +93,6 @@ program
   .description('UI 모드 (인터랙티브 인터페이스)')
   .action(monitor);
 
-// Orchestrate command
-program
-  .command('orchestrate [mode]')
-  .description('AI 에이전트 오케스트레이션 (sprint_routine, feature_impl 등)')
-  .action(orchestrate);
-
 // Config command
 program
   .command('config [action] [key] [value]')
@@ -116,7 +109,7 @@ program
 const args = process.argv.slice(2);
 
 // 명령어 목록
-const COMMANDS = ['setup', 'status', 'reset', 'upgrade', 'validate', 'sessions', 'logs', 'run', 'sprint', 'docs', 'orchestrate', 'config', 'monitor', 'm'];
+const COMMANDS = ['setup', 'status', 'reset', 'upgrade', 'validate', 'sessions', 'logs', 'run', 'sprint', 'docs', 'config', 'monitor', 'm'];
 
 if (args.length === 0) {
   // 인자 없으면 대화형 모드

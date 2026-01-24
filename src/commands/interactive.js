@@ -2,7 +2,6 @@ import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { setup } from './setup.js';
 import { run } from './run.js';
-import { orchestrate } from './orchestrate.js';
 import { status } from './status.js';
 import { sessions } from './sessions.js';
 import { logs } from './logs.js';
@@ -60,12 +59,10 @@ export async function interactive() {
         pageSize: 12,
         choices: [
           new inquirer.Separator('── 핵심 기능 ──'),
-          { name: '🚀 매니저 가이드 모드 (AI가 리딩)', value: 'guided' },
           { name: '🤖 역할별 에이전트 실행 (수동 선택)', value: 'run' },
           
           new inquirer.Separator('── 관리 기능 ──'),
           { name: '🏃 스프린트 관리 (Sprint)', value: 'sprint' },
-          { name: '🎼 시나리오 실행 (Orchestration)', value: 'orchestrate' },
           { name: '📊 상태 및 모니터링 (Status & Sessions)', value: 'monitor' },
           { name: '📝 문서 관리 (Docs)', value: 'docs' },
           
@@ -95,20 +92,12 @@ export async function interactive() {
 
 async function handleMenuAction(action) {
   switch (action) {
-    case 'guided':
-      await orchestrate('guided');
-      break;
-
     case 'run':
       await handleRunAgent();
       break;
 
     case 'sprint':
       await handleSprintMenu();
-      break;
-
-    case 'orchestrate':
-      await handleOrchestrateMenu();
       break;
 
     case 'monitor':
@@ -228,27 +217,6 @@ async function handleSprintMenu() {
 }
 
 /**
- * 4. 오케스트레이션 메뉴 (다른 시나리오)
- */
-async function handleOrchestrateMenu() {
-  const { mode } = await inquirer.prompt([{
-    type: 'list',
-    name: 'mode',
-    message: '실행할 시나리오:',
-    choices: [
-      { name: '🏃 스프린트 루틴 (Planner → Developer → Reviewer)', value: 'sprint_routine' },
-      { name: '✨ 기능 구현 (Developer → Reviewer)', value: 'feature_impl' },
-      { name: '🧪 QA 패스 (QA → Developer)', value: 'qa_pass' },
-      { name: '📝 문서화 (All → Documenter)', value: 'documentation' },
-      { name: '🔙 뒤로가기', value: 'back' }
-    ]
-  }]);
-
-  if (mode === 'back') return;
-  await orchestrate(mode);
-}
-
-/**
  * 5. 모니터링 메뉴
  */
 async function handleMonitorMenu() {
@@ -338,7 +306,6 @@ function getRoleDescription(role) {
     developer: 'developer    - 코드 구현 (범용)',
     reviewer: 'reviewer     - 코드 리뷰',
     documenter: 'documenter   - 문서 작성',
-    qa: 'qa           - 수용 조건 검증',
     analyzer: 'analyzer     - 코드베이스 분석',
     manager: 'manager      - (수동) 프로젝트 관리',
     backend: 'backend      - API 설계, 서버 구현',
