@@ -87,19 +87,23 @@ export async function sessions(options = {}) {
   // 3. Task 진행 상황 표시
   const status = readStatus();
   const taskProgress = status.taskProgress || {};
-  const activeTasks = Object.entries(taskProgress).filter(([_, info]) =>
-    info.status && info.status !== 'DONE'
-  );
+  const activeTasks = Object.entries(taskProgress).filter(([_, info]) => {
+    const s = (info.status || '').toUpperCase();
+    return s && s !== 'DONE' && s !== 'REJECTED';
+  });
 
   if (activeTasks.length > 0) {
     console.log(chalk.cyan.bold('진행 중인 Task'));
     console.log('');
 
     activeTasks.forEach(([taskId, info]) => {
-      const progress = info.progress || 0;
-      const progressBar = '#'.repeat(Math.floor(progress / 10)) + '-'.repeat(10 - Math.floor(progress / 10));
       const normalizedStatus = info.status === 'IN_QA' ? 'IN_REVIEW' : info.status;
-      console.log(`  ${taskId}: ${progressBar} ${progress}% (${normalizedStatus})`);
+      const statusColor = normalizedStatus === 'DONE' ? chalk.green : 
+                          normalizedStatus === 'IN_DEV' ? chalk.yellow :
+                          normalizedStatus === 'IN_REVIEW' ? chalk.blue :
+                          chalk.white;
+
+      console.log(`  ${taskId}: [${statusColor(normalizedStatus)}]`);
       if (info.assignee) {
         console.log(chalk.gray(`    담당: ${info.assignee}`));
       }
@@ -388,10 +392,7 @@ async function watchSessions() {
 
         activeTasks.slice(0, 5).forEach((taskId, index) => {
           const task = taskProgress[taskId];
-          const progress = task.progress || 0;
-          const bars = Math.floor(progress / 5);
-          const progressBar = '#'.repeat(bars) + '-'.repeat(20 - bars);
-
+          
           const statusColors = {
             'IN_DEV': chalk.blue,
             'IN_REVIEW': chalk.yellow,
@@ -402,11 +403,13 @@ async function watchSessions() {
           const normalizedStatus = task.status === 'IN_QA' ? 'IN_REVIEW' : task.status;
           const statusColor = statusColors[normalizedStatus] || chalk.white;
 
-          console.log(chalk.white(`  ${taskId}: ${progressBar} ${progress}%`));
-          console.log(chalk.gray(`  상태: ${statusColor(normalizedStatus)} ${task.assignee ? `| 담당: ${task.assignee}` : ''}`));
+          console.log(chalk.white(`  ${taskId}: [${statusColor(normalizedStatus)}]`));
+          if (task.assignee) {
+            console.log(chalk.gray(`     담당: ${task.assignee}`));
+          }
 
           if (task.note) {
-            console.log(chalk.gray(`  메모: ${task.note}`));
+            console.log(chalk.gray(`     메모: ${task.note}`));
           }
 
           if (index < Math.min(activeTasks.length, 5) - 1) {
