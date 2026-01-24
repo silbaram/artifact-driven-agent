@@ -148,9 +148,9 @@ project.md 규칙 준수?
 
 | 판정 | 조치 | 다음 단계 |
 |------|------|----------|
-| PASS | 리뷰 리포트 작성 | 스프린트 완료 |
-| REJECT | 리뷰 리포트 작성, Developer에게 수정 요청 | Developer 재작업 |
-| WARN | PASS와 동일, 개선 권장사항 기록 | 스프린트 완료 |
+| PASS | 리뷰 리포트 작성, **Task 파일 '변경 이력'에 PASS 기록** | 스프린트 완료 |
+| REJECT | 리뷰 리포트 작성, **Task 상태 'REJECTED'로 변경 및 이력 기록** | Developer 재작업 |
+| WARN | PASS와 동일 (이력에 WARN 포함하여 기록) | 스프린트 완료 |
 
 ---
 
@@ -262,5 +262,33 @@ REJECT 시 리뷰 리포트에 명확히 기록:
 ━━━━━━━━━━━━━━━━━━━━━━
 
 task-004 리뷰부터 시작하겠습니다.
+```
+
+---
+
+## 13. Task 파일 수정 예시
+
+**PASS 시 (task-NNN.md):**
+- 상태: 변경 없음 (DONE 유지)
+- 변경 이력: 행 추가
+
+```markdown
+| YYYY-MM-DD | DONE | developer | 구현 완료 |
+| 2024-01-16 | DONE | reviewer | Review PASS |  <-- 추가됨
+```
+
+**REJECT 시 (task-NNN.md):**
+- 상태: **REJECTED**로 변경
+- 변경 이력: 행 추가
+
+```markdown
+| 항목 | 값 |
+|------|-----|
+| 상태 | REJECTED |  <-- 변경됨
+
+...
+
+| YYYY-MM-DD | DONE | developer | 구현 완료 |
+| 2024-01-16 | REJECTED | reviewer | Review REJECT (사유: 테스트 미흡) | <-- 추가됨
 ```
 
