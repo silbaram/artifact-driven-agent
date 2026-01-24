@@ -16,6 +16,7 @@ import {
   getAvailableRoles,
   getAvailableTools
 } from '../utils/files.js';
+import { getToolForRole } from '../utils/config.js';
 
 /**
  * 대화형 메인 메뉴 (ada 명령어 인자 없이 실행 시)
@@ -59,7 +60,7 @@ export async function interactive() {
         pageSize: 12,
         choices: [
           new inquirer.Separator('── 핵심 기능 ──'),
-          { name: '🤖 역할별 에이전트 실행 (수동 선택)', value: 'run' },
+          { name: '🤖 역할별 에이전트 실행 (설정 도구)', value: 'run' },
           
           new inquirer.Separator('── 관리 기능 ──'),
           { name: '🏃 스프린트 관리 (Sprint)', value: 'sprint' },
@@ -130,30 +131,70 @@ async function handleRunAgent() {
     return;
   }
 
-  const answers = await inquirer.prompt([
+  const { role } = await inquirer.prompt([
     {
       type: 'list',
-      name: 'role',
       message: '실행할 역할을 선택하세요:',
       pageSize: 10,
       choices: roles.map(r => ({
-        name: getRoleDescription(r),
+        name: `${getRoleDescription(r)} (설정: ${getToolForRole(r)})`,
         value: r
-      }))
-    },
-    {
-      type: 'list',
-      name: 'tool',
-      message: 'AI 도구를 선택하세요:',
-      choices: tools.map(t => ({
-        name: getToolDescription(t),
-        value: t
       }))
     }
   ]);
 
+  const configuredTool = getToolForRole(role);
+  let selectedTool = configuredTool;
+
+  if (!tools.includes(configuredTool)) {
+    console.log(chalk.yellow(`⚠️  설정된 도구(${configuredTool})가 지원 목록에 없습니다.`));
+    const { tool } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'tool',
+        message: '사용할 AI 도구를 선택하세요:',
+        choices: tools.map(t => ({
+          name: getToolDescription(t),
+          value: t
+        }))
+      }
+    ]);
+    selectedTool = tool;
+  } else {
+    const { runMode } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'runMode',
+        message: `선택된 도구: ${configuredTool}. 어떻게 실행할까요?`,
+        choices: [
+          { name: `바로 실행 (${configuredTool})`, value: 'configured' },
+          { name: '도구 변경 후 실행', value: 'manual' },
+          { name: '🔙 뒤로가기', value: 'back' }
+        ]
+      }
+    ]);
+
+    if (runMode === 'back') return;
+
+    if (runMode === 'manual') {
+      const { tool } = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'tool',
+          message: 'AI 도구를 선택하세요:',
+          choices: tools.map(t => ({
+            name: getToolDescription(t),
+            value: t
+          })),
+          default: configuredTool
+        }
+      ]);
+      selectedTool = tool;
+    }
+  }
+
   console.log('');
-  await run(answers.role, answers.tool);
+  await run(role, selectedTool);
 }
 
 /**
