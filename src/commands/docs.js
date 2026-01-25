@@ -277,13 +277,72 @@ async function publishDocs(options) {
 
   if (isMkDocs) {
     console.log(chalk.cyan('📘 MkDocs 문서 배포'));
+    
+    // 배포 확인
+    const answer = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'confirm',
+        message: 'GitHub Pages에 문서를 배포하시겠습니까? (gh-pages 브랜치에 푸시됩니다)',
+        default: false
+      }
+    ]);
+
+    if (!answer.confirm) {
+      console.log(chalk.yellow('⚠️  배포가 취소되었습니다.'));
+      return;
+    }
+
+    // 가상환경 내의 mkdocs 실행 파일 확인 (venv 및 .venv 지원)
+    const venvCandidates = [
+      path.join(projectRoot, 'venv', 'Scripts', 'mkdocs.exe'),    // Windows venv
+      path.join(projectRoot, 'venv', 'bin', 'mkdocs'),            // Unix venv
+      path.join(projectRoot, '.venv', 'Scripts', 'mkdocs.exe'),   // Windows .venv
+      path.join(projectRoot, '.venv', 'bin', 'mkdocs')            // Unix .venv
+    ];
+    
+    let mkdocsCmd = 'mkdocs';
+    let usingVenv = false;
+    for (const candidate of venvCandidates) {
+      if (fs.existsSync(candidate)) {
+        mkdocsCmd = candidate;
+        usingVenv = true;
+        break;
+      }
+    }
+
+    if (usingVenv) {
+      console.log(chalk.gray(`   가상환경 사용: ${mkdocsCmd}`));
+    } else {
+      console.log(chalk.gray('   시스템 전역 mkdocs 사용 시도...'));
+    }
     console.log('');
-    console.log(chalk.yellow('다음 명령어를 실행하세요:'));
-    console.log('');
-    console.log(chalk.white('  cd docs'));
-    console.log(chalk.white('  mkdocs gh-deploy'));
-    console.log('');
-    console.log(chalk.gray('또는 GitHub Actions를 사용하여 자동 배포를 설정할 수 있습니다.'));
+
+    // mkdocs gh-deploy 실행
+    const mkdocs = spawn(mkdocsCmd, ['gh-deploy'], {
+      cwd: docsDir,
+      stdio: 'inherit',
+      shell: true
+    });
+
+    mkdocs.on('error', (err) => {
+      console.log('');
+      console.log(chalk.red('❌ MkDocs 실행 실패'));
+      console.log(chalk.yellow('💡 MkDocs가 설치되어 있는지 확인하세요.'));
+      process.exit(1);
+    });
+
+    mkdocs.on('close', (code) => {
+      if (code === 0) {
+        console.log('');
+        console.log(chalk.green('✅ 배포가 완료되었습니다!'));
+        console.log(chalk.gray('   잠시 후 GitHub Pages 설정된 주소에서 확인할 수 있습니다.'));
+      } else {
+        console.log('');
+        console.log(chalk.red(`❌ 배포 중 오류가 발생했습니다 (코드: ${code})`));
+      }
+    });
+
   } else if (isJekyll) {
     console.log(chalk.cyan('📗 Jekyll 문서 배포'));
     console.log('');
@@ -298,8 +357,8 @@ async function publishDocs(options) {
     console.log(chalk.yellow('⚠️  문서 생성기를 인식할 수 없습니다.'));
   }
 
-  console.log(chalk.cyan('━'.repeat(60)));
-  console.log('');
+  // 기존에는 여기서 함수가 끝났지만, spawn은 비동기이므로
+  // MkDocs의 경우 이벤트 핸들러에서 처리가 완료됩니다.
 }
 
 /**
