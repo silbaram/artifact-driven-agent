@@ -327,17 +327,21 @@ async function serveDocs(options) {
   if (isMkDocs) {
     console.log(chalk.cyan('📘 MkDocs 서버 시작 중...'));
 
-    // 가상환경 내의 mkdocs 실행 파일 확인
-    const venvMkDocsWin = path.join(projectRoot, 'venv', 'Scripts', 'mkdocs.exe');
-    const venvMkDocsUnix = path.join(projectRoot, 'venv', 'bin', 'mkdocs');
+    // 가상환경 내의 mkdocs 실행 파일 확인 (venv 및 .venv 지원)
+    const venvCandidates = [
+      path.join(projectRoot, 'venv', 'Scripts', 'mkdocs.exe'),    // Windows venv
+      path.join(projectRoot, 'venv', 'bin', 'mkdocs'),            // Unix venv
+      path.join(projectRoot, '.venv', 'Scripts', 'mkdocs.exe'),   // Windows .venv
+      path.join(projectRoot, '.venv', 'bin', 'mkdocs')            // Unix .venv
+    ];
     
     let mkdocsCmd = 'mkdocs';
-    if (fs.existsSync(venvMkDocsWin)) {
-      mkdocsCmd = venvMkDocsWin;
-      console.log(chalk.gray(`   가상환경 사용: ${mkdocsCmd}`));
-    } else if (fs.existsSync(venvMkDocsUnix)) {
-      mkdocsCmd = venvMkDocsUnix;
-      console.log(chalk.gray(`   가상환경 사용: ${mkdocsCmd}`));
+    for (const candidate of venvCandidates) {
+      if (fs.existsSync(candidate)) {
+        mkdocsCmd = candidate;
+        console.log(chalk.gray(`   가상환경 사용: ${mkdocsCmd}`));
+        break;
+      }
     }
 
     console.log(chalk.gray('   문서: http://127.0.0.1:8000'));
