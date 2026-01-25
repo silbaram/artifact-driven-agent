@@ -326,12 +326,26 @@ async function serveDocs(options) {
 
   if (isMkDocs) {
     console.log(chalk.cyan('📘 MkDocs 서버 시작 중...'));
+
+    // 가상환경 내의 mkdocs 실행 파일 확인
+    const venvMkDocsWin = path.join(projectRoot, 'venv', 'Scripts', 'mkdocs.exe');
+    const venvMkDocsUnix = path.join(projectRoot, 'venv', 'bin', 'mkdocs');
+    
+    let mkdocsCmd = 'mkdocs';
+    if (fs.existsSync(venvMkDocsWin)) {
+      mkdocsCmd = venvMkDocsWin;
+      console.log(chalk.gray(`   가상환경 사용: ${mkdocsCmd}`));
+    } else if (fs.existsSync(venvMkDocsUnix)) {
+      mkdocsCmd = venvMkDocsUnix;
+      console.log(chalk.gray(`   가상환경 사용: ${mkdocsCmd}`));
+    }
+
     console.log(chalk.gray('   문서: http://127.0.0.1:8000'));
     console.log(chalk.gray('   종료: Ctrl+C'));
     console.log('');
 
     // mkdocs serve 실행
-    const mkdocs = spawn('mkdocs', ['serve'], {
+    const mkdocs = spawn(mkdocsCmd, ['serve'], {
       cwd: docsDir,
       stdio: 'inherit',
       shell: true
