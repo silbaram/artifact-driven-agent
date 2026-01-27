@@ -42,6 +42,7 @@ export async function monitor() {
   let refreshTimer = null;
   let fileWatcher = null;
   let debounceTimer = null;
+  const canAutoRefresh = process.stdout.isTTY;
 
   // 키 핸들러 초기화
   const keyHandler = new KeyHandler({
@@ -68,7 +69,7 @@ export async function monitor() {
         }
 
         // 완료 후 대기 (목록 표시 후 키 대기가 필요한 명령어들)
-        const waitKeys = ['h', '7', 's', 'l', 't', 'c', 'a', 'v'];
+        const waitKeys = ['h', 's', 'l', 't'];
         if (waitKeys.includes(key)) {
           await waitForKey();
         }
@@ -113,6 +114,10 @@ export async function monitor() {
    * 자동 갱신 시작
    */
   function startAutoRefresh() {
+    if (!canAutoRefresh) {
+      return;
+    }
+
     if (refreshTimer) {
       clearInterval(refreshTimer);
     }
@@ -128,6 +133,10 @@ export async function monitor() {
    * 파일 감시 시작 (스프린트/Task 변경 감지)
    */
   function startFileWatcher() {
+    if (!canAutoRefresh) {
+      return;
+    }
+
     try {
       const workspace = getWorkspaceDir();
       const watchPaths = [
@@ -206,7 +215,9 @@ export async function monitor() {
   process.stdout.write('\x1b[?25l');
 
   // 초기 렌더링
-  statusMessage = '준비됨';
+  statusMessage = canAutoRefresh
+    ? '준비됨'
+    : '자동 갱신 비활성화됨 (TTY 미지원)';
   refresh();
 
   // 키 핸들러 시작

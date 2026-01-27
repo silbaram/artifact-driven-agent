@@ -2,7 +2,6 @@ import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { setup } from './setup.js';
 import { run } from './run.js';
-import { orchestrate } from './orchestrate.js';
 import { status } from './status.js';
 import { sessions } from './sessions.js';
 import { logs } from './logs.js';
@@ -17,6 +16,7 @@ import {
   getAvailableRoles,
   getAvailableTools
 } from '../utils/files.js';
+import { getToolForRole } from '../utils/config.js';
 
 /**
  * 대화형 메인 메뉴 (ada 명령어 인자 없이 실행 시)
@@ -60,12 +60,10 @@ export async function interactive() {
         pageSize: 12,
         choices: [
           new inquirer.Separator('── 핵심 기능 ──'),
-          { name: '🚀 매니저 가이드 모드 (AI가 리딩)', value: 'guided' },
-          { name: '🤖 역할별 에이전트 실행 (수동 선택)', value: 'run' },
+          { name: '🤖 역할별 에이전트 실행 (설정 도구)', value: 'run' },
           
           new inquirer.Separator('── 관리 기능 ──'),
           { name: '🏃 스프린트 관리 (Sprint)', value: 'sprint' },
-          { name: '🎼 시나리오 실행 (Orchestration)', value: 'orchestrate' },
           { name: '📊 상태 및 모니터링 (Status & Sessions)', value: 'monitor' },
           { name: '📝 문서 관리 (Docs)', value: 'docs' },
           
@@ -95,20 +93,12 @@ export async function interactive() {
 
 async function handleMenuAction(action) {
   switch (action) {
-    case 'guided':
-      await orchestrate('guided');
-      break;
-
     case 'run':
       await handleRunAgent();
       break;
 
     case 'sprint':
       await handleSprintMenu();
-      break;
-
-    case 'orchestrate':
-      await handleOrchestrateMenu();
       break;
 
     case 'monitor':
@@ -141,30 +131,77 @@ async function handleRunAgent() {
     return;
   }
 
-  const answers = await inquirer.prompt([
+  const roleChoices = roles.map(r => ({
+    name: `${getRoleDescription(r)} (설정: ${getToolForRole(r)})`,
+    value: r
+  }));
+  roleChoices.push(new inquirer.Separator());
+  roleChoices.push({ name: '🔙 뒤로가기', value: null });
+
+  const { role } = await inquirer.prompt([
     {
       type: 'list',
       name: 'role',
       message: '실행할 역할을 선택하세요:',
       pageSize: 10,
-      choices: roles.map(r => ({
-        name: getRoleDescription(r),
-        value: r
-      }))
-    },
-    {
-      type: 'list',
-      name: 'tool',
-      message: 'AI 도구를 선택하세요:',
-      choices: tools.map(t => ({
-        name: getToolDescription(t),
-        value: t
-      }))
+      choices: roleChoices
     }
   ]);
 
+  if (!role) return;
+
+  const configuredTool = getToolForRole(role);
+  let selectedTool = configuredTool;
+
+  if (!tools.includes(configuredTool)) {
+    console.log(chalk.yellow(`⚠️  설정된 도구(${configuredTool})가 지원 목록에 없습니다.`));
+    const { tool } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'tool',
+        message: '사용할 AI 도구를 선택하세요:',
+        choices: tools.map(t => ({
+          name: getToolDescription(t),
+          value: t
+        }))
+      }
+    ]);
+    selectedTool = tool;
+  } else {
+    const { runMode } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'runMode',
+        message: `선택된 도구: ${configuredTool}. 어떻게 실행할까요?`,
+        choices: [
+          { name: `바로 실행 (${configuredTool})`, value: 'configured' },
+          { name: '도구 변경 후 실행', value: 'manual' },
+          { name: '🔙 뒤로가기', value: 'back' }
+        ]
+      }
+    ]);
+
+    if (runMode === 'back') return;
+
+    if (runMode === 'manual') {
+      const { tool } = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'tool',
+          message: 'AI 도구를 선택하세요:',
+          choices: tools.map(t => ({
+            name: getToolDescription(t),
+            value: t
+          })),
+          default: configuredTool
+        }
+      ]);
+      selectedTool = tool;
+    }
+  }
+
   console.log('');
-  await run(answers.role, answers.tool);
+  await run(role, selectedTool);
 }
 
 /**
@@ -228,27 +265,6 @@ async function handleSprintMenu() {
 }
 
 /**
- * 4. 오케스트레이션 메뉴 (다른 시나리오)
- */
-async function handleOrchestrateMenu() {
-  const { mode } = await inquirer.prompt([{
-    type: 'list',
-    name: 'mode',
-    message: '실행할 시나리오:',
-    choices: [
-      { name: '🏃 스프린트 루틴 (Planner → Developer → Reviewer)', value: 'sprint_routine' },
-      { name: '✨ 기능 구현 (Developer → Reviewer)', value: 'feature_impl' },
-      { name: '🧪 QA 패스 (QA → Developer)', value: 'qa_pass' },
-      { name: '📝 문서화 (All → Documenter)', value: 'documentation' },
-      { name: '🔙 뒤로가기', value: 'back' }
-    ]
-  }]);
-
-  if (mode === 'back') return;
-  await orchestrate(mode);
-}
-
-/**
  * 5. 모니터링 메뉴
  */
 async function handleMonitorMenu() {
@@ -261,7 +277,6 @@ async function handleMonitorMenu() {
       { name: '🖥️  실시간 대시보드 (Dashboard)', value: 'dashboard' },
       { name: '📋 세션 목록 (Sessions)', value: 'sessions' },
       { name: '📜 최근 로그 (Logs)', value: 'logs' },
-      { name: '🧹 세션 정리 (Clean)', value: 'clean' },
       { name: '🔙 뒤로가기', value: 'back' }
     ]
   }]);
@@ -270,9 +285,29 @@ async function handleMonitorMenu() {
 
   if (subAction === 'status') await status();
   else if (subAction === 'dashboard') await monitor();
-  else if (subAction === 'sessions') await sessions({});
+  else if (subAction === 'sessions') await handleSessionsMenu();
   else if (subAction === 'logs') await logs();
-  else if (subAction === 'clean') await sessions({ clean: true });
+}
+
+/**
+ * 5-1. 세션 메뉴
+ */
+async function handleSessionsMenu() {
+  await sessions({});
+
+  const { nextAction } = await inquirer.prompt([{
+    type: 'list',
+    name: 'nextAction',
+    message: '세션 작업:',
+    choices: [
+      { name: '🧹 세션 정리 (Clean)', value: 'clean' },
+      { name: '🔙 뒤로가기', value: 'back' }
+    ]
+  }]);
+
+  if (nextAction === 'clean') {
+    await sessions({ clean: true });
+  }
 }
 
 /**
@@ -338,7 +373,6 @@ function getRoleDescription(role) {
     developer: 'developer    - 코드 구현 (범용)',
     reviewer: 'reviewer     - 코드 리뷰',
     documenter: 'documenter   - 문서 작성',
-    qa: 'qa           - 수용 조건 검증',
     analyzer: 'analyzer     - 코드베이스 분석',
     manager: 'manager      - (수동) 프로젝트 관리',
     backend: 'backend      - API 설계, 서버 구현',

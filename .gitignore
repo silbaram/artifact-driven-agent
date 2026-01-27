@@ -3,11 +3,7 @@
 # ===========================================
 
 # 세팅된 작업 파일들 (setup 명령으로 생성됨)
-ai-dev-team/roles/*.md
-ai-dev-team/artifacts/*.md
-ai-dev-team/rules/*.md
-ai-dev-team/artifacts/features/*/
-ai-dev-team/artifacts/rfc/*.md
+ai-dev-team/
 !ai-dev-team/artifacts/rfc/RFC-0000-template.md
 !ai-dev-team/artifacts/features/_template/
 

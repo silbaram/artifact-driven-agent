@@ -25,8 +25,7 @@ export async function sessions(options = {}) {
 
   // Clean 모드
   if (options.clean) {
-    const days = parseInt(options.days || '7', 10);
-    return cleanupCompletedSessions(days);
+    return cleanupCompletedSessions();
   }
 
   const sessionsDir = getSessionsDir();
@@ -87,18 +86,23 @@ export async function sessions(options = {}) {
   // 3. Task 진행 상황 표시
   const status = readStatus();
   const taskProgress = status.taskProgress || {};
-  const activeTasks = Object.entries(taskProgress).filter(([_, info]) =>
-    info.status && info.status !== 'DONE'
-  );
+  const activeTasks = Object.entries(taskProgress).filter(([_, info]) => {
+    const s = (info.status || '').toUpperCase();
+    return s && s !== 'DONE' && s !== 'REJECTED';
+  });
 
   if (activeTasks.length > 0) {
     console.log(chalk.cyan.bold('진행 중인 Task'));
     console.log('');
 
     activeTasks.forEach(([taskId, info]) => {
-      const progress = info.progress || 0;
-      const progressBar = '#'.repeat(Math.floor(progress / 10)) + '-'.repeat(10 - Math.floor(progress / 10));
-      console.log(`  ${taskId}: ${progressBar} ${progress}% (${info.status})`);
+      const normalizedStatus = info.status === 'IN_QA' ? 'IN_REVIEW' : info.status;
+      const statusColor = normalizedStatus === 'DONE' ? chalk.green : 
+                          normalizedStatus === 'IN_DEV' ? chalk.yellow :
+                          normalizedStatus === 'IN_REVIEW' ? chalk.blue :
+                          chalk.white;
+
+      console.log(`  ${taskId}: [${statusColor(normalizedStatus)}]`);
       if (info.assignee) {
         console.log(chalk.gray(`    담당: ${info.assignee}`));
       }
@@ -387,25 +391,24 @@ async function watchSessions() {
 
         activeTasks.slice(0, 5).forEach((taskId, index) => {
           const task = taskProgress[taskId];
-          const progress = task.progress || 0;
-          const bars = Math.floor(progress / 5);
-          const progressBar = '#'.repeat(bars) + '-'.repeat(20 - bars);
-
+          
           const statusColors = {
             'IN_DEV': chalk.blue,
             'IN_REVIEW': chalk.yellow,
-            'IN_QA': chalk.magenta,
             'READY': chalk.gray,
             'IN_SPRINT': chalk.cyan
           };
 
-          const statusColor = statusColors[task.status] || chalk.white;
+          const normalizedStatus = task.status === 'IN_QA' ? 'IN_REVIEW' : task.status;
+          const statusColor = statusColors[normalizedStatus] || chalk.white;
 
-          console.log(chalk.white(`  ${taskId}: ${progressBar} ${progress}%`));
-          console.log(chalk.gray(`  상태: ${statusColor(task.status)} ${task.assignee ? `| 담당: ${task.assignee}` : ''}`));
+          console.log(chalk.white(`  ${taskId}: [${statusColor(normalizedStatus)}]`));
+          if (task.assignee) {
+            console.log(chalk.gray(`     담당: ${task.assignee}`));
+          }
 
           if (task.note) {
-            console.log(chalk.gray(`  메모: ${task.note}`));
+            console.log(chalk.gray(`     메모: ${task.note}`));
           }
 
           if (index < Math.min(activeTasks.length, 5) - 1) {
@@ -575,9 +578,8 @@ async function watchSessions() {
 
 /**
  * 완료된 세션 정리
- * @param {number} days - 지정한 일수보다 오래된 세션만 정리
  */
-async function cleanupCompletedSessions(days = 7) {
+async function cleanupCompletedSessions() {
   const sessionsDir = getSessionsDir();
 
   if (!fs.existsSync(sessionsDir)) {
@@ -587,12 +589,9 @@ async function cleanupCompletedSessions(days = 7) {
 
   console.log('');
   console.log(chalk.cyan('━'.repeat(60)));
-  console.log(chalk.cyan.bold(`완료된 세션 정리 (${days}일 이전)`));
+  console.log(chalk.cyan.bold('완료된 세션 정리 (status: completed)'));
   console.log(chalk.cyan('━'.repeat(60)));
   console.log('');
-
-  const now = Date.now();
-  const cutoffTime = now - (days * 24 * 60 * 60 * 1000);
 
   const sessionDirs = fs.readdirSync(sessionsDir)
     .filter(f => fs.statSync(path.join(sessionsDir, f)).isDirectory())
@@ -617,26 +616,9 @@ async function cleanupCompletedSessions(days = 7) {
       // 세션 정보 읽기
       const session = JSON.parse(fs.readFileSync(sessionFile, 'utf-8'));
 
-      // 세션 시작 시간 파싱
-      let sessionTime;
-      if (session.startedAt) {
-        sessionTime = new Date(session.startedAt).getTime();
-      } else {
-        // session.json에 시간 정보가 없으면 디렉토리 생성 시간 사용
-        const stats = fs.statSync(sessionPath);
-        sessionTime = stats.birthtimeMs || stats.mtimeMs;
-      }
-
-      // cutoff 시간 이후면 건너뜀
-      if (sessionTime > cutoffTime) {
-        console.log(chalk.gray(`  ${sessionId}: ${days}일 이내 (유지)`));
-        skippedCount++;
-        continue;
-      }
-
       // 완료 상태가 아니면 건너뜀
-      if (session.status !== 'completed' && session.status !== 'error') {
-        console.log(chalk.yellow(`  ${sessionId}: 미완료 상태 (${session.status}) - 유지`));
+      if (session.status !== 'completed') {
+        console.log(chalk.yellow(`  ${sessionId}: 완료 아님 (${session.status || 'unknown'}) - 유지`));
         skippedCount++;
         continue;
       }

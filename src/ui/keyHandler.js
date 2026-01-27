@@ -82,25 +82,14 @@ export class KeyHandler {
       return;
     }
 
-    if (lowerKey === '0' || lowerKey === 'r') {
-      this.onRefresh();
-      return;
-    }
-
     // Quick Action 키 확인 (숫자, 알파벳 모두)
     if (QUICK_ACTIONS[lowerKey]) {
       this.onKey(lowerKey);
       return;
     }
 
-    // 숫자 키 처리 (1-9)
-    if (str && /^[1-9]$/.test(str)) {
-      this.onKey(str);
-      return;
-    }
-
-    // 알파벳 키 처리 (s, l, t, c, a, v, o)
-    if (str && /^[sltcavo]$/i.test(str)) {
+    // 알파벳 키 처리 (s, l, t)
+    if (str && /^[slt]$/i.test(str)) {
       this.onKey(lowerKey);
       return;
     }
@@ -120,6 +109,9 @@ export function waitForKey() {
     }
 
     const wasRaw = process.stdin.isRaw;
+    const wasPaused = typeof process.stdin.isPaused === 'function'
+      ? process.stdin.isPaused()
+      : false;
     readline.emitKeypressEvents(process.stdin);
     process.stdin.setRawMode(true);
     process.stdin.resume();
@@ -129,7 +121,11 @@ export function waitForKey() {
       if (!wasRaw) {
         process.stdin.setRawMode(false);
       }
-      process.stdin.pause();
+      if (wasPaused) {
+        process.stdin.pause();
+      } else {
+        process.stdin.resume();
+      }
 
       // Ctrl+C
       if (key && key.ctrl && key.name === 'c') {

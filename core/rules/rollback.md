@@ -73,13 +73,13 @@ Developer: 수정된 설계로 재구현
 ```
 Reviewer REJECT
     ↓
-Task 상태: IN_QA → IN_DEV
+Task 상태: IN_REVIEW → IN_DEV
     ↓
 review-report.md에 FAIL 사유 기록
     ↓
 원인에 따라 담당자 결정
     ↓
-수정 후 재리뷰 → 재QA
+수정 후 재리뷰
 ```
 
 ---
@@ -143,7 +143,7 @@ Task 상태 복원 → 재진행
     ↓
 Task 상태에 따른 처리:
 ├── DONE → 재검증 필요 여부 판단
-├── IN_QA/IN_REVIEW → 재검증
+├── IN_REVIEW → 재검증
 ├── IN_DEV → 수정 반영
 └── IN_SPRINT/READY → 문서만 갱신
 ```

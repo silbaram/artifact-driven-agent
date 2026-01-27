@@ -24,7 +24,6 @@ import { getToolForRole } from '../utils/config.js';
 
 /**
  * [API] AI 에이전트 세션 실행 (핵심 로직)
- * 오케스트레이터나 다른 모듈에서 호출하여 사용
  * @param {string} role - 실행할 역할 (예: 'developer')
  * @param {string} tool - 사용할 도구 (예: 'claude')
  * @param {object} options - 추가 옵션
@@ -275,7 +274,6 @@ function printSessionBanner(role, tool, sessionId, template) {
     'backend': '⚙️',
     'frontend': '🎨',
     'reviewer': '👀',
-    'qa': '🧪',
     'manager': '👔',
     'library-developer': '📚',
     'game-logic': '🎮',
