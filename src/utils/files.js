@@ -8,6 +8,16 @@ const __dirname = path.dirname(__filename);
 const require = createRequire(import.meta.url);
 
 /**
+ * 줄바꿈 문자를 LF로 통일
+ * Windows CRLF(\r\n) → LF(\n)
+ * @param {string} content - 텍스트 내용
+ * @returns {string} LF로 통일된 내용
+ */
+export function normalizeLineEndings(content) {
+  return content.replace(/\r\n/g, '\n');
+}
+
+/**
  * 패키지 루트 디렉토리 반환
  */
 export function getPackageRoot() {
@@ -115,12 +125,16 @@ export function isWorkspaceSetup() {
 
 /**
  * 디렉토리 복사 (머지)
+ * 텍스트 파일(.md, .json)은 줄바꿈을 LF로 통일
  */
 export function copyDirMerge(src, dest) {
   if (!fs.existsSync(src)) return;
 
   fs.ensureDirSync(dest);
   const items = fs.readdirSync(src);
+
+  // 줄바꿈 정규화가 필요한 확장자
+  const textExtensions = ['.md', '.json', '.txt'];
 
   for (const item of items) {
     const srcPath = path.join(src, item);
@@ -130,7 +144,15 @@ export function copyDirMerge(src, dest) {
     if (stat.isDirectory()) {
       copyDirMerge(srcPath, destPath);
     } else {
-      fs.copyFileSync(srcPath, destPath);
+      const ext = path.extname(item).toLowerCase();
+      if (textExtensions.includes(ext)) {
+        // 텍스트 파일: 줄바꿈 정규화 후 복사
+        const content = fs.readFileSync(srcPath, 'utf-8');
+        fs.writeFileSync(destPath, normalizeLineEndings(content), 'utf-8');
+      } else {
+        // 바이너리 파일: 그대로 복사
+        fs.copyFileSync(srcPath, destPath);
+      }
     }
   }
 }

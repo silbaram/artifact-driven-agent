@@ -152,7 +152,7 @@ ada documenter claude         # Documenter가 docs/ 업데이트
 # 로컬 미리보기
 ada docs serve
 
-# GitHub Pages 배포
+# GitHub Pages 배포 (MkDocs 자동 배포 지원)
 ada docs publish
 ```
 
@@ -339,7 +339,7 @@ ada docs generate
 # 로컬 문서 서버 실행
 ada docs serve
 
-# GitHub Pages 배포
+# GitHub Pages 배포 (MkDocs 자동 배포 지원)
 ada docs publish
 ```
 

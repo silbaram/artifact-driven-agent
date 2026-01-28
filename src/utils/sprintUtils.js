@@ -2,6 +2,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import chalk from 'chalk';
 import { parseTaskMetadata } from './taskParser.js';
+import { normalizeLineEndings } from './files.js';
 
 /**
  * 현재 활성 스프린트 찾기
@@ -96,8 +97,8 @@ export async function syncSprint(sprintsDir, silent = false) {
 export function updateSprintMeta(sprintPath, tasks) {
   const metaPath = path.join(sprintPath, 'meta.md');
   if (!fs.existsSync(metaPath)) return;
-  
-  let metaContent = fs.readFileSync(metaPath, 'utf-8');
+
+  let metaContent = normalizeLineEndings(fs.readFileSync(metaPath, 'utf-8'));
 
   // Task 목록/요약 섹션 찾기
   // 기존 정규식이 좀 약할 수 있으므로 보완
@@ -130,5 +131,5 @@ export function updateSprintMeta(sprintPath, tasks) {
     }
   }
 
-  fs.writeFileSync(metaPath, metaContent);
+  fs.writeFileSync(metaPath, metaContent, 'utf-8');
 }

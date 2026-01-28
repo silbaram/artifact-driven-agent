@@ -2,7 +2,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
-import { getWorkspaceDir, isWorkspaceSetup } from '../utils/files.js';
+import { getWorkspaceDir, isWorkspaceSetup, normalizeLineEndings } from '../utils/files.js';
 import { syncSprint, findActiveSprint, updateSprintMeta } from '../utils/sprintUtils.js';
 import { normalizeTaskStatus } from '../utils/taskParser.js';
 
@@ -212,14 +212,14 @@ async function closeSprint(sprintsDir, args = []) {
   await syncSprint(sprintsDir, true);
 
   // meta.md 업데이트 (active → completed)
-  let metaContent = fs.readFileSync(metaPath, 'utf-8');
+  let metaContent = normalizeLineEndings(fs.readFileSync(metaPath, 'utf-8'));
   const today = new Date().toISOString().slice(0, 10);
 
   metaContent = metaContent
     .replace(/상태 \| active/, `상태 | completed`)
     .replace(/종료 예정 \| .*/, `종료 예정 | ${today}`);
 
-  fs.writeFileSync(metaPath, metaContent);
+  fs.writeFileSync(metaPath, metaContent, 'utf-8');
 
   // retrospective.md 생성
   console.log('');

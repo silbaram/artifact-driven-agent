@@ -3,7 +3,7 @@ import path from 'path';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { spawn } from 'child_process';
-import { getPackageRoot, getWorkspaceDir, isWorkspaceSetup } from '../utils/files.js';
+import { getPackageRoot, getWorkspaceDir, isWorkspaceSetup, normalizeLineEndings } from '../utils/files.js';
 
 /**
  * 문서 관리 명령어
@@ -120,7 +120,7 @@ async function initDocs(options) {
     const packageJson = path.join(projectRoot, 'package.json');
     if (fs.existsSync(packageJson)) {
       const pkg = JSON.parse(fs.readFileSync(packageJson, 'utf-8'));
-      let config = fs.readFileSync(configFile, 'utf-8');
+      let config = normalizeLineEndings(fs.readFileSync(configFile, 'utf-8'));
 
       if (generator === 'mkdocs') {
         config = config.replace('site_name: Project Documentation', `site_name: ${pkg.name || 'Project'} Documentation`);
@@ -138,7 +138,7 @@ async function initDocs(options) {
         }
       }
 
-      fs.writeFileSync(configFile, config);
+      fs.writeFileSync(configFile, config, 'utf-8');
     }
   }
 
@@ -195,7 +195,7 @@ ada documenter claude
 \`\`\`
 `;
 
-  fs.writeFileSync(readmeFile, readmeContent);
+  fs.writeFileSync(readmeFile, readmeContent, 'utf-8');
 
   console.log('');
   console.log(chalk.green('✅ 문서 구조 초기화 완료!'));
@@ -218,10 +218,10 @@ ada documenter claude
   // .gitignore 업데이트
   const gitignorePath = path.join(projectRoot, '.gitignore');
   if (fs.existsSync(gitignorePath)) {
-    let gitignore = fs.readFileSync(gitignorePath, 'utf-8');
+    let gitignore = normalizeLineEndings(fs.readFileSync(gitignorePath, 'utf-8'));
     if (!gitignore.includes('site/')) {
       gitignore += '\n# MkDocs build output\nsite/\n';
-      fs.writeFileSync(gitignorePath, gitignore);
+      fs.writeFileSync(gitignorePath, gitignore, 'utf-8');
       console.log(chalk.gray('✓ .gitignore 업데이트됨'));
       console.log('');
     }
