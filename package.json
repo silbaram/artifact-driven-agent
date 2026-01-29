@@ -1,6 +1,6 @@
 {
   "name": "@silbaram/artifact-driven-agent",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "description": "CLI 기반 멀티 AI 에이전트 개발 프레임워크 - AI가 규칙을 어기지 못하게 하는 문서 기반 개발",
   "type": "module",
   "bin": {
