@@ -206,6 +206,7 @@ async function runInteractiveSet(currentConfig: AdaConfig): Promise<void> {
           { name: '📝 역할별 도구 설정', value: 'set_role' },
           { name: '🔧 기본 도구 변경', value: 'set_default' },
           { name: '📦 프리셋 적용', value: 'preset' },
+          { name: '📚 스킬 관리', value: 'manage_skills' },
           new inquirer.Separator(),
           { name: '💾 저장하고 종료', value: 'save' },
           { name: '❌ 변경 취소', value: 'cancel' },
@@ -219,6 +220,8 @@ async function runInteractiveSet(currentConfig: AdaConfig): Promise<void> {
       await setDefaultTool(currentConfig, pendingChanges, tools);
     } else if (action === 'preset') {
       await applyPreset(currentConfig, pendingChanges);
+    } else if (action === 'manage_skills') {
+      await manageSkills(currentConfig);
     } else if (action === 'save') {
       if (Object.keys(pendingChanges).length === 0) {
         console.log(chalk.yellow('\n변경 사항이 없습니다.'));
@@ -585,4 +588,282 @@ function setValue(
   if (last) {
     target[last] = value;
   }
+}
+
+/**
+ * 사용 가능한 스킬 목록 가져오기
+ */
+function getAvailableSkills(): string[] {
+  const workspaceDir = getWorkspaceDir();
+  const skillsDir = path.join(workspaceDir, 'skills');
+
+  if (!fs.existsSync(skillsDir)) {
+    return [];
+  }
+
+  return fs.readdirSync(skillsDir, { withFileTypes: true })
+    .filter(dirent => dirent.isDirectory() && !dirent.name.startsWith('_'))
+    .map(dirent => dirent.name);
+}
+
+/**
+ * 스킬 관리 (대화형)
+ */
+async function manageSkills(config: AdaConfig): Promise<void> {
+  while (true) {
+    console.log(chalk.cyan('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+    console.log(chalk.cyan.bold('📚 스킬 관리'));
+    console.log(chalk.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'));
+
+    const { skillAction } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'skillAction',
+        message: '무엇을 하시겠습니까?',
+        choices: [
+          { name: '👀 역할별 스킬 보기', value: 'view' },
+          { name: '➕ 역할에 스킬 추가', value: 'add' },
+          { name: '➖ 역할에서 스킬 제거', value: 'remove' },
+          { name: '🔄 역할 스킬 초기화', value: 'reset' },
+          new inquirer.Separator(),
+          { name: '↩️  뒤로가기', value: 'back' },
+        ],
+      },
+    ]);
+
+    if (skillAction === 'back') {
+      break;
+    }
+
+    if (skillAction === 'view') {
+      await viewRoleSkills(config);
+    } else if (skillAction === 'add') {
+      await addSkillsInteractive(config);
+    } else if (skillAction === 'remove') {
+      await removeSkillsInteractive(config);
+    } else if (skillAction === 'reset') {
+      await resetRoleSkills(config);
+    }
+  }
+}
+
+/**
+ * 역할별 스킬 보기
+ */
+async function viewRoleSkills(config: AdaConfig): Promise<void> {
+  console.log(chalk.cyan('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+  console.log(chalk.cyan.bold('👀 역할별 스킬 현황'));
+  console.log(chalk.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'));
+
+  const roles = Object.keys(config.roles);
+
+  for (const role of roles) {
+    const skills = getSkillsForRole(role);
+    const tool = getToolForRole(role);
+
+    console.log(`${chalk.cyan(role)}`);
+    console.log(`  도구: ${chalk.gray(tool)}`);
+
+    if (skills.length > 0) {
+      console.log(`  스킬: ${chalk.green(skills.join(', '))}`);
+    } else {
+      console.log(`  스킬: ${chalk.gray('없음')}`);
+    }
+    console.log('');
+  }
+
+  await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'continue',
+      message: 'Enter 키를 눌러 계속...',
+    },
+  ]);
+}
+
+/**
+ * 역할에 스킬 추가 (대화형)
+ */
+async function addSkillsInteractive(config: AdaConfig): Promise<void> {
+  const roles = Object.keys(config.roles);
+  const availableSkills = getAvailableSkills();
+
+  if (availableSkills.length === 0) {
+    console.log(chalk.yellow('\n⚠️  사용 가능한 스킬이 없습니다.'));
+    console.log(chalk.gray('커뮤니티에서 스킬을 다운로드하여 ai-dev-team/skills/ 디렉토리에 추가하세요.'));
+    await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'continue',
+        message: 'Enter 키를 눌러 계속...',
+      },
+    ]);
+    return;
+  }
+
+  // 역할 선택
+  const { selectedRole } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'selectedRole',
+      message: '스킬을 추가할 역할을 선택하세요:',
+      choices: roles.map((role) => {
+        const current = getSkillsForRole(role);
+        return {
+          name: `${role} (현재: ${current.length > 0 ? current.join(', ') : '없음'})`,
+          value: role,
+        };
+      }),
+    },
+  ]);
+
+  const currentSkills = getSkillsForRole(selectedRole);
+
+  // 스킬 선택 (멀티 선택)
+  const { selectedSkills } = await inquirer.prompt([
+    {
+      type: 'checkbox',
+      name: 'selectedSkills',
+      message: '추가할 스킬을 선택하세요 (스페이스바로 선택):',
+      choices: availableSkills.map((skill) => ({
+        name: skill,
+        value: skill,
+        checked: currentSkills.includes(skill),
+      })),
+    },
+  ]);
+
+  if (selectedSkills.length === 0) {
+    console.log(chalk.yellow('\n선택된 스킬이 없습니다.'));
+    return;
+  }
+
+  // 스킬 설정
+  setSkillsForRole(selectedRole, selectedSkills);
+
+  console.log(chalk.green(`\n✓ ${selectedRole} 역할의 스킬 설정 완료`));
+  console.log(chalk.gray(`스킬: ${selectedSkills.join(', ')}`));
+}
+
+/**
+ * 역할에서 스킬 제거 (대화형)
+ */
+async function removeSkillsInteractive(config: AdaConfig): Promise<void> {
+  const roles = Object.keys(config.roles);
+
+  // 스킬이 있는 역할만 필터링
+  const rolesWithSkills = roles.filter((role) => getSkillsForRole(role).length > 0);
+
+  if (rolesWithSkills.length === 0) {
+    console.log(chalk.yellow('\n⚠️  스킬이 설정된 역할이 없습니다.'));
+    await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'continue',
+        message: 'Enter 키를 눌러 계속...',
+      },
+    ]);
+    return;
+  }
+
+  // 역할 선택
+  const { selectedRole } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'selectedRole',
+      message: '스킬을 제거할 역할을 선택하세요:',
+      choices: rolesWithSkills.map((role) => {
+        const current = getSkillsForRole(role);
+        return {
+          name: `${role} (현재: ${current.join(', ')})`,
+          value: role,
+        };
+      }),
+    },
+  ]);
+
+  const currentSkills = getSkillsForRole(selectedRole);
+
+  // 제거할 스킬 선택
+  const { skillsToRemove } = await inquirer.prompt([
+    {
+      type: 'checkbox',
+      name: 'skillsToRemove',
+      message: '제거할 스킬을 선택하세요:',
+      choices: currentSkills.map((skill) => ({
+        name: skill,
+        value: skill,
+      })),
+    },
+  ]);
+
+  if (skillsToRemove.length === 0) {
+    console.log(chalk.yellow('\n선택된 스킬이 없습니다.'));
+    return;
+  }
+
+  // 스킬 제거
+  removeSkillsFromRole(selectedRole, ...skillsToRemove);
+
+  const remaining = getSkillsForRole(selectedRole);
+  console.log(chalk.green(`\n✓ ${selectedRole} 역할에서 스킬 제거 완료`));
+  console.log(chalk.gray(`남은 스킬: ${remaining.length > 0 ? remaining.join(', ') : '없음'}`));
+}
+
+/**
+ * 역할 스킬 초기화 (대화형)
+ */
+async function resetRoleSkills(config: AdaConfig): Promise<void> {
+  const roles = Object.keys(config.roles);
+
+  // 스킬이 있는 역할만 필터링
+  const rolesWithSkills = roles.filter((role) => getSkillsForRole(role).length > 0);
+
+  if (rolesWithSkills.length === 0) {
+    console.log(chalk.yellow('\n⚠️  스킬이 설정된 역할이 없습니다.'));
+    await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'continue',
+        message: 'Enter 키를 눌러 계속...',
+      },
+    ]);
+    return;
+  }
+
+  // 역할 선택
+  const { selectedRole } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'selectedRole',
+      message: '스킬을 초기화할 역할을 선택하세요:',
+      choices: rolesWithSkills.map((role) => {
+        const current = getSkillsForRole(role);
+        return {
+          name: `${role} (현재: ${current.join(', ')})`,
+          value: role,
+        };
+      }),
+    },
+  ]);
+
+  // 확인
+  const { confirm } = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'confirm',
+      message: `${selectedRole} 역할의 모든 스킬을 제거하시겠습니까?`,
+      default: false,
+    },
+  ]);
+
+  if (!confirm) {
+    console.log(chalk.gray('\n취소되었습니다.'));
+    return;
+  }
+
+  // 스킬 초기화
+  setSkillsForRole(selectedRole, []);
+
+  console.log(chalk.green(`\n✓ ${selectedRole} 역할의 스킬이 초기화되었습니다.`));
 }

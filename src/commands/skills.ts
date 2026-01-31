@@ -18,86 +18,10 @@ export async function skills(action: string, ...args: string[]): Promise<void> {
   const skillsDir = path.join(workspace, 'skills');
 
   switch (action) {
-    case 'create': {
-      const skillName = args[0];
-
-      if (!skillName) {
-        console.log(chalk.red('스킬 이름을 지정해주세요.'));
-        console.log(chalk.gray('예시: ada skills create spring-boot'));
-        process.exit(1);
-      }
-
-      // 스킬 이름 검증 (소문자, 숫자, 하이픈만)
-      if (!/^[a-z0-9-]+$/.test(skillName)) {
-        console.log(chalk.red('스킬 이름은 소문자, 숫자, 하이픈(-)만 사용할 수 있습니다.'));
-        process.exit(1);
-      }
-
-      const skillPath = path.join(skillsDir, skillName);
-
-      if (fs.existsSync(skillPath)) {
-        console.log(chalk.yellow(`⚠️  스킬이 이미 존재합니다: ${skillName}`));
-        process.exit(1);
-      }
-
-      // 스킬 디렉토리 생성
-      fs.ensureDirSync(skillPath);
-
-      // SKILL.md 템플릿 생성
-      const template = `---
-name: ${skillName}
-description: ${skillName} 관련 전문 지식과 패턴
----
-
-# ${skillName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-
-이 스킬은 ${skillName} 관련 작업 시 적용됩니다.
-
-## 주요 규칙
-
-1. **규칙 1**: 설명
-2. **규칙 2**: 설명
-3. **규칙 3**: 설명
-
-## 패턴 및 예시
-
-### 패턴 1
-
-\`\`\`
-// 예시 코드
-\`\`\`
-
-### 패턴 2
-
-\`\`\`
-// 예시 코드
-\`\`\`
-
-## 참고 사항
-
-- 추가 설명
-- 주의사항
-
-## 추가 리소스
-
-필요 시 이 디렉토리에 추가 파일을 포함할 수 있습니다:
-- examples/ - 예시 코드
-- references/ - 참조 문서
-- scripts/ - 유틸리티 스크립트
-`;
-
-      fs.writeFileSync(path.join(skillPath, 'SKILL.md'), template);
-
-      console.log(chalk.green(`✓ 스킬 생성 완료: ${skillName}`));
-      console.log(chalk.gray(`\n편집: ${path.join(skillPath, 'SKILL.md')}`));
-      console.log(chalk.gray(`역할에 추가: ada config set-skills <role> ${skillName}`));
-      break;
-    }
-
     case 'list': {
       if (!fs.existsSync(skillsDir)) {
         console.log(chalk.yellow('⚠️  skills 디렉토리가 없습니다.'));
-        console.log(chalk.gray('스킬 생성: ada skills create <name>'));
+        console.log(chalk.gray('커뮤니티에서 스킬을 다운로드하여 ai-dev-team/skills/ 디렉토리에 추가하세요.'));
         return;
       }
 
@@ -106,8 +30,9 @@ description: ${skillName} 관련 전문 지식과 패턴
         .map(dirent => dirent.name);
 
       if (skillDirs.length === 0) {
-        console.log(chalk.yellow('⚠️  생성된 스킬이 없습니다.'));
-        console.log(chalk.gray('스킬 생성: ada skills create <name>'));
+        console.log(chalk.yellow('⚠️  스킬이 없습니다.'));
+        console.log(chalk.gray('커뮤니티에서 스킬을 다운로드하여 ai-dev-team/skills/ 디렉토리에 추가하세요.'));
+        console.log(chalk.gray('예: ai-dev-team/skills/spring-boot/SKILL.md'));
         return;
       }
 
@@ -185,9 +110,12 @@ description: ${skillName} 관련 전문 지식과 패턴
       console.log(chalk.red(`알 수 없는 액션: ${action}`));
       console.log('');
       console.log(chalk.bold('사용 가능한 명령어:'));
-      console.log(chalk.gray('  ada skills create <name>  - 새 스킬 생성'));
       console.log(chalk.gray('  ada skills list           - 스킬 목록'));
       console.log(chalk.gray('  ada skills info <name>    - 스킬 상세 정보'));
+      console.log('');
+      console.log(chalk.bold('💡 스킬 추가 방법:'));
+      console.log(chalk.gray('  커뮤니티에서 스킬을 다운로드하여 ai-dev-team/skills/ 디렉토리에 추가'));
+      console.log(chalk.gray('  예: ai-dev-team/skills/spring-boot/SKILL.md'));
       process.exit(1);
   }
 }

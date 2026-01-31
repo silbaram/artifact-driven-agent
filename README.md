@@ -19,14 +19,17 @@
 
 AI 에이전트 실행 시, 시스템 프롬프트에 다음을 포함합니다:
 
-1. **모든 규칙 파일 내용** (rules/*.md)
-2. **핵심 산출물 내용** (plan.md, project.md, 현재 스프린트 Task 파일)
-3. **인터페이스 문서 내용** (api.md, ui.md 등)
+1. **역할 정의** - 역할의 책임과 권한
+2. **모든 규칙 파일 내용** (rules/*.md)
+3. **전문 스킬** (skills/*.md) - 역할에 지정된 기술 스택 가이드
+4. **핵심 산출물 내용** (plan.md, project.md, 현재 스프린트 Task 파일)
+5. **인터페이스 문서 내용** (api.md, ui.md 등)
 
 이를 통해 AI는:
 - 문서에 명시된 규칙을 따라야만 함
 - 현재 스프린트 범위를 벗어날 수 없음
 - project.md에 없는 기술을 추가할 수 없음
+- 프로젝트의 코딩 패턴과 스타일을 자동으로 준수
 
 **파일명만 나열하지 않고, 내용을 포함**하는 것이 핵심입니다.
 
@@ -224,7 +227,9 @@ artifact-driven-agent/
 │   ├── artifacts/          # 산출물 템플릿
 │   │   └── sprints/
 │   │       └── _template/  # 스프린트 템플릿
-│   └── rules/              # 5개 규칙
+│   ├── rules/              # 5개 규칙
+│   └── skills/             # 🆕 스킬 템플릿
+│       └── _template/
 └── templates/              # 프로젝트 유형별
     ├── web-dev/
     ├── library/
@@ -261,7 +266,14 @@ ai-dev-team/
 │               └── task-005.md
 ├── roles/                  # core + template 병합
 ├── rules/
-├── ada.config.json         # 역할별 AI 도구 설정
+├── skills/                 # 🆕 역할별 전문 스킬
+│   ├── _template/
+│   │   └── SKILL.md
+│   ├── spring-boot/
+│   │   └── SKILL.md
+│   └── kotlin/
+│       └── SKILL.md
+├── ada.config.json         # 역할별 AI 도구 + 스킬 설정
 ├── .ada-status.json        # 멀티 세션 상태 파일
 └── .sessions/              # 세션 이력
     └── logs/
@@ -359,6 +371,43 @@ ada docs publish
 **참고:** 실제 문서 내용 생성은 Documenter 역할로 수행합니다:
 ```bash
 ada documenter claude
+```
+
+### 스킬 관리
+
+```bash
+# 스킬 목록
+ada skills list
+
+# 스킬 정보
+ada skills info spring-boot
+
+# 역할에 스킬 설정
+ada config set-skills developer spring-boot kotlin jpa-patterns
+
+# 스킬 추가
+ada config add-skills developer rest-api
+
+# 스킬 제거
+ada config remove-skills developer jpa-patterns
+
+# 역할별 스킬 확인
+ada config show-skills
+```
+
+**스킬 추가 방법:**
+커뮤니티나 GitHub에서 스킬을 다운로드하여 `ai-dev-team/skills/` 디렉토리에 추가합니다.
+
+```bash
+# 예시: GitHub에서 스킬 다운로드
+cd ai-dev-team/skills/
+git clone https://github.com/awesome-ada/spring-boot-skill.git spring-boot
+
+# 또는 직접 복사
+cp -r /path/to/spring-boot ai-dev-team/skills/
+
+# 확인
+ada skills list
 ```
 
 ## 🔄 워크플로우
@@ -592,6 +641,180 @@ ada config get roles.manager
 ```
 
 설정을 초기화하려면 `ai-dev-team/ada.config.json` 삭제 후 `ada config`를 실행하세요.
+
+---
+
+## 🎓 스킬 시스템
+
+역할별로 기술 스택, 패턴, 코딩 스타일 등의 전문 지식을 스킬로 정의하여 AI에게 자동으로 제공할 수 있습니다.
+
+### 개념
+
+**스킬(Skill)**은 특정 기술이나 패턴에 대한 가이드를 담은 마크다운 문서입니다.
+
+- 역할별로 필요한 스킬을 지정하면, AI 실행 시 자동으로 로드됩니다.
+- 프로젝트별 기술 스택 표준화 및 코딩 패턴 통일에 유용합니다.
+
+### 스킬 구조
+
+```
+ai-dev-team/skills/
+├── _template/              # 템플릿
+│   └── SKILL.md
+├── spring-boot/            # 사용자 생성 스킬
+│   ├── SKILL.md           # 메인 파일 (필수)
+│   ├── examples/          # 예시 코드 (선택)
+│   └── references/        # 참조 문서 (선택)
+└── kotlin/
+    └── SKILL.md
+```
+
+**SKILL.md 예시:**
+```yaml
+---
+name: spring-boot
+description: Spring Boot 백엔드 개발 시 Kotlin, REST API, JPA 패턴 적용
+---
+
+# Spring Boot + Kotlin 백엔드 개발
+
+## Controller 패턴
+- `@RestController` + `@RequestMapping` 사용
+- 경로는 복수형 명사 (`/api/users`)
+
+## Service 계층
+- `@Service` + `@Transactional` 조합
+
+## Repository
+- Spring Data JPA 사용
+```
+
+### 사용 방법
+
+**1. 스킬 다운로드 또는 생성:**
+
+커뮤니티에서 검증된 스킬을 다운로드하거나, 직접 생성합니다.
+
+```bash
+# 방법 1: 커뮤니티에서 다운로드 (권장)
+cd ai-dev-team/skills/
+git clone https://github.com/awesome-ada/spring-boot-skill.git spring-boot
+git clone https://github.com/awesome-ada/kotlin-skill.git kotlin
+
+# 방법 2: 직접 생성
+mkdir -p ai-dev-team/skills/spring-boot
+touch ai-dev-team/skills/spring-boot/SKILL.md
+code ai-dev-team/skills/spring-boot/SKILL.md
+```
+
+**2. 스킬 확인:**
+```bash
+ada skills list
+```
+
+**3. 역할에 스킬 연결:**
+```bash
+# Developer 역할에 스킬 설정
+ada config set-skills developer spring-boot kotlin jpa-patterns
+
+# 확인
+ada config show-skills
+```
+
+**4. AI 실행:**
+```bash
+ada developer claude
+
+# → Claude가 Spring Boot, Kotlin, JPA 스킬을 자동으로 로드
+# → 해당 패턴에 맞춰 코드 생성!
+```
+
+### 설정 파일 (ada.config.json)
+
+스킬을 설정하면 config 파일이 자동으로 업데이트됩니다:
+
+```json
+{
+  "version": "1.0",
+  "defaults": { "tool": "claude" },
+  "roles": {
+    "developer": {
+      "tool": "claude",
+      "skills": ["spring-boot", "kotlin", "jpa-patterns"]
+    },
+    "planner": "claude"
+  }
+}
+```
+
+**하위 호환성:** 문자열 형식(기존)과 객체 형식(스킬 포함) 모두 지원합니다.
+
+### 작동 원리
+
+AI 에이전트 실행 시, 시스템 프롬프트에 다음 순서로 포함됩니다:
+
+1. **역할 정의** - 역할의 책임과 권한
+2. **규칙** - 프레임워크 핵심 규칙
+3. **스킬** ⭐ - 역할에 지정된 전문 지식
+4. **산출물** - plan.md, project.md 등
+5. **스프린트 정보** - 현재 Task 목록
+
+이를 통해 AI는 프로젝트의 기술 스택과 코딩 패턴을 자동으로 따르게 됩니다.
+
+### 예시 시나리오
+
+**Spring Boot + Kotlin 프로젝트:**
+
+```bash
+# 1. 스킬 다운로드 (커뮤니티에서)
+cd ai-dev-team/skills/
+git clone https://github.com/awesome-ada/spring-boot-skill.git spring-boot
+git clone https://github.com/awesome-ada/kotlin-skill.git kotlin
+git clone https://github.com/awesome-ada/rest-api-skill.git rest-api
+
+# 2. 확인
+ada skills list
+
+# 3. Developer 역할에 스킬 설정
+ada config set-skills developer spring-boot kotlin rest-api
+
+# 4. 개발 실행
+ada developer claude
+
+# → Controller 작성 시 자동으로:
+#   - @RestController + @RequestMapping 패턴 사용
+#   - Kotlin data class 활용
+#   - REST API 네이밍 규칙 준수
+```
+
+**Python FastAPI 프로젝트:**
+
+```bash
+# 커뮤니티에서 스킬 다운로드
+cd ai-dev-team/skills/
+git clone https://github.com/awesome-ada/fastapi-skill.git fastapi
+git clone https://github.com/awesome-ada/pydantic-skill.git pydantic
+
+ada config set-skills developer fastapi pydantic sqlalchemy
+
+ada developer claude
+```
+
+### 스킬 관리 명령어
+
+| 명령어 | 설명 |
+|--------|------|
+| `ada skills list` | 스킬 목록 |
+| `ada skills info <name>` | 스킬 상세 정보 |
+| `ada config set-skills <role> <skill1> ...` | 스킬 설정 (덮어쓰기) |
+| `ada config add-skills <role> <skill1> ...` | 스킬 추가 |
+| `ada config remove-skills <role> <skill1> ...` | 스킬 제거 |
+| `ada config show-skills` | 역할별 스킬 확인 |
+
+**스킬 추가 방법:**
+- 커뮤니티 저장소에서 다운로드
+- 직접 `ai-dev-team/skills/<name>/SKILL.md` 생성
+- 팀 내부 스킬 공유
 
 ---
 

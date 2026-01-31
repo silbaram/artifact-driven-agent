@@ -90,7 +90,7 @@ program
 // Skills command
 program
   .command('skills <action> [args...]')
-  .description('스킬 관리 (create, list, info)')
+  .description('스킬 관리 (list, info)')
   .action(skills);
 
 // Monitor command (UI 모드)
