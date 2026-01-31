@@ -4,13 +4,19 @@ import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { spawn } from 'child_process';
 import { getPackageRoot, getWorkspaceDir, isWorkspaceSetup, normalizeLineEndings } from '../utils/files.js';
+import type { DocsGenerator } from '../types/index.js';
+
+/**
+ * 문서 명령어 옵션
+ */
+interface DocsOptions {
+  generator?: DocsGenerator;
+}
 
 /**
  * 문서 관리 명령어
- * @param {string} action - init / generate / publish / serve
- * @param {Object} options - 명령어 옵션
  */
-export default async function docs(action, options = {}) {
+export default async function docs(action: string, options: DocsOptions = {}): Promise<void> {
   if (!isWorkspaceSetup() && action !== 'init') {
     console.log(chalk.red('❌ 워크스페이스가 설정되지 않았습니다.'));
     console.log(chalk.gray('   ada setup [template]을 먼저 실행하세요.'));
@@ -45,7 +51,7 @@ export default async function docs(action, options = {}) {
 /**
  * 문서 구조 초기화
  */
-async function initDocs(options) {
+async function initDocs(options: DocsOptions): Promise<void> {
   const projectRoot = process.cwd();
   const docsDir = path.join(projectRoot, 'docs');
 
@@ -93,7 +99,7 @@ async function initDocs(options) {
         default: 'mkdocs'
       }
     ]);
-    generator = answer.generator;
+    generator = answer.generator as DocsGenerator;
   }
 
   // 템플릿 복사
@@ -109,7 +115,7 @@ async function initDocs(options) {
   fs.copySync(templateDir, docsDir);
 
   // mkdocs.yml 또는 _config.yml 업데이트 (프로젝트 이름)
-  let configFile;
+  let configFile: string | undefined;
   if (generator === 'mkdocs') {
     configFile = path.join(docsDir, 'mkdocs.yml');
   } else if (generator === 'jekyll') {
@@ -231,7 +237,7 @@ ada documenter claude
 /**
  * 문서 생성 (Documenter 역할 실행)
  */
-async function generateDocs(options) {
+async function generateDocs(options: DocsOptions): Promise<void> {
   console.log('');
   console.log(chalk.cyan('━'.repeat(60)));
   console.log(chalk.cyan.bold('📝 문서 생성'));
@@ -254,7 +260,7 @@ async function generateDocs(options) {
 /**
  * GitHub Pages 배포
  */
-async function publishDocs(options) {
+async function publishDocs(options: DocsOptions): Promise<void> {
   const projectRoot = process.cwd();
   const docsDir = path.join(projectRoot, 'docs');
 
@@ -277,7 +283,7 @@ async function publishDocs(options) {
 
   if (isMkDocs) {
     console.log(chalk.cyan('📘 MkDocs 문서 배포'));
-    
+
     // 배포 확인
     const answer = await inquirer.prompt([
       {
@@ -300,7 +306,7 @@ async function publishDocs(options) {
       path.join(projectRoot, '.venv', 'Scripts', 'mkdocs.exe'),   // Windows .venv
       path.join(projectRoot, '.venv', 'bin', 'mkdocs')            // Unix .venv
     ];
-    
+
     let mkdocsCmd = 'mkdocs';
     let usingVenv = false;
     for (const candidate of venvCandidates) {
@@ -356,15 +362,12 @@ async function publishDocs(options) {
   } else {
     console.log(chalk.yellow('⚠️  문서 생성기를 인식할 수 없습니다.'));
   }
-
-  // 기존에는 여기서 함수가 끝났지만, spawn은 비동기이므로
-  // MkDocs의 경우 이벤트 핸들러에서 처리가 완료됩니다.
 }
 
 /**
  * 로컬 문서 서버 실행
  */
-async function serveDocs(options) {
+async function serveDocs(options: DocsOptions): Promise<void> {
   const projectRoot = process.cwd();
   const docsDir = path.join(projectRoot, 'docs');
 
@@ -393,7 +396,7 @@ async function serveDocs(options) {
       path.join(projectRoot, '.venv', 'Scripts', 'mkdocs.exe'),   // Windows .venv
       path.join(projectRoot, '.venv', 'bin', 'mkdocs')            // Unix .venv
     ];
-    
+
     let mkdocsCmd = 'mkdocs';
     for (const candidate of venvCandidates) {
       if (fs.existsSync(candidate)) {

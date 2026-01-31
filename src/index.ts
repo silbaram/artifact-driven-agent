@@ -11,3 +11,6 @@ export { interactive } from './commands/interactive.js';
 
 // Utils
 export * from './utils/files.js';
+
+// Types
+export * from './types/index.js';

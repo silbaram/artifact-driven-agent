@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import type { TestContext } from 'node:test';
 import { validateBacklog, validateSprint } from './validate.js';
 
-function createArtifactsDir(t) {
+function createArtifactsDir(t: TestContext): string {
   const baseDir = path.join(process.cwd(), 'tmp', 'validate-tests');
   fs.mkdirSync(baseDir, { recursive: true });
 

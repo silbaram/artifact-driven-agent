@@ -18,6 +18,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const { version } = require('../package.json');
+
 program
   .name('ada')
   .description('Artifact-Driven AI Agent Framework\nAI가 규칙을 어기지 못하게 하는 문서 기반 개발')

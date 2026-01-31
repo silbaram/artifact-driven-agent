@@ -1,9 +1,24 @@
 import chalk from 'chalk';
 import path from 'path';
 import fs from 'fs-extra';
-import { getLogsDir, getWorkspaceDir, isWorkspaceSetup } from '../utils/files.js';
-import { readStatus, getActiveSessions, getPendingQuestions } from '../utils/sessionState.js';
+import {
+  getLogsDir,
+  getWorkspaceDir,
+  isWorkspaceSetup,
+} from '../utils/files.js';
+import {
+  readStatus,
+  getActiveSessions,
+  getPendingQuestions,
+} from '../utils/sessionState.js';
 import { parseTaskMetadata } from '../utils/taskParser.js';
+import type {
+  NextRecommendation,
+  ProjectState,
+  SessionInfo,
+  SessionLog,
+  TaskMetadata,
+} from '../types/index.js';
 
 /**
  * 대시보드 UI 구성 상수
@@ -17,8 +32,8 @@ const MAX_LOG_BYTES = 8192;
 /**
  * 프로젝트 상태 정보 수집
  */
-export function gatherProjectState() {
-  const result = {
+export function gatherProjectState(): ProjectState {
+  const result: ProjectState = {
     isSetup: false,
     template: null,
     currentSprint: null,
@@ -28,12 +43,12 @@ export function gatherProjectState() {
       inReview: [],
       done: [],
       reject: [],
-      blocked: []
+      blocked: [],
     },
     sessions: [],
     sessionLogs: [],
     pendingQuestions: [],
-    nextRecommendation: null
+    nextRecommendation: null,
   };
 
   if (!isWorkspaceSetup()) {
@@ -63,9 +78,10 @@ export function gatherProjectState() {
   const sprintsDir = path.join(artifactsDir, 'sprints');
 
   if (fs.existsSync(sprintsDir)) {
-    const sprints = fs.readdirSync(sprintsDir, { withFileTypes: true })
-      .filter(d => d.isDirectory() && /^sprint-\d+$/.test(d.name))
-      .map(d => d.name)
+    const sprints = fs
+      .readdirSync(sprintsDir, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && /^sprint-\d+$/.test(d.name))
+      .map((d) => d.name)
       .sort((a, b) => {
         const numA = parseInt(a.split('-')[1]);
         const numB = parseInt(b.split('-')[1]);
@@ -82,10 +98,11 @@ export function gatherProjectState() {
       const reviewReportsDir = path.join(sprintDir, 'review-reports');
 
       if (fs.existsSync(tasksDir)) {
-        const taskFiles = fs.readdirSync(tasksDir)
-          .filter(f => f.endsWith('.md') && f.startsWith('task-'));
+        const taskFiles = fs
+          .readdirSync(tasksDir)
+          .filter((f) => f.endsWith('.md') && f.startsWith('task-'));
 
-        taskFiles.forEach(taskFile => {
+        taskFiles.forEach((taskFile) => {
           const taskPath = path.join(tasksDir, taskFile);
           const content = fs.readFileSync(taskPath, 'utf-8');
           const taskInfo = parseTaskMetadata(content, taskFile);
@@ -101,7 +118,8 @@ export function gatherProjectState() {
           else if (status === 'IN_DEV') result.tasks.inDev.push(taskInfo);
           else if (status === 'IN_REVIEW') result.tasks.inReview.push(taskInfo);
           else if (status === 'DONE') result.tasks.done.push(taskInfo);
-          else if (status === 'REJECTED' || status === 'REJECT') result.tasks.reject.push(taskInfo);
+          else if (status === 'REJECTED' || status === 'REJECT')
+            result.tasks.reject.push(taskInfo);
           else if (status === 'BLOCKED') result.tasks.blocked.push(taskInfo);
           else result.tasks.backlog.push(taskInfo);
         });
@@ -118,31 +136,46 @@ export function gatherProjectState() {
 /**
  * 다음 추천 액션 결정
  */
-function determineNextAction(state) {
+function determineNextAction(state: ProjectState): NextRecommendation {
   if (!state.isSetup) {
     return { action: 'setup', reason: 'Setup 필요' };
   }
 
   if (state.tasks.reject.length > 0) {
-    return { role: 'developer', reason: `REJECT ${state.tasks.reject.length}개 수정` };
+    return {
+      role: 'developer',
+      reason: `REJECT ${state.tasks.reject.length}개 수정`,
+    };
   }
 
   if (state.tasks.inReview.length > 0) {
-    return { role: 'reviewer', reason: `IN_REVIEW ${state.tasks.inReview.length}개 리뷰` };
+    return {
+      role: 'reviewer',
+      reason: `IN_REVIEW ${state.tasks.inReview.length}개 리뷰`,
+    };
   }
 
   if (state.tasks.backlog.length > 0 && state.tasks.inDev.length === 0) {
-    return { role: 'developer', reason: `BACKLOG ${state.tasks.backlog.length}개 개발 시작` };
+    return {
+      role: 'developer',
+      reason: `BACKLOG ${state.tasks.backlog.length}개 개발 시작`,
+    };
   }
 
   if (state.tasks.inDev.length > 0) {
-    return { role: 'developer', reason: `IN_DEV ${state.tasks.inDev.length}개 개발 계속` };
+    return {
+      role: 'developer',
+      reason: `IN_DEV ${state.tasks.inDev.length}개 개발 계속`,
+    };
   }
 
   if (state.tasks.done.length > 0) {
-    const needsReview = state.tasks.done.filter(t => !t.hasReviewReport);
+    const needsReview = state.tasks.done.filter((t) => !t.hasReviewReport);
     if (needsReview.length > 0) {
-      return { role: 'reviewer', reason: `완료 ${needsReview.length}개 리뷰 필요` };
+      return {
+        role: 'reviewer',
+        reason: `완료 ${needsReview.length}개 리뷰 필요`,
+      };
     }
     return { role: 'documenter', reason: '모든 Task 완료, 문서화' };
   }
@@ -168,20 +201,24 @@ const BOX = {
   teeLeft: '\u2524',
   teeDown: '\u252C',
   teeUp: '\u2534',
-  cross: '\u253C'
+  cross: '\u253C',
 };
 
 /**
  * 수평선 생성
  */
-function horizontalLine(width, left = BOX.teeRight, right = BOX.teeLeft) {
+function horizontalLine(
+  width: number,
+  left = BOX.teeRight,
+  right = BOX.teeLeft
+): string {
   return left + BOX.horizontal.repeat(width - 2) + right;
 }
 
 /**
  * 텍스트 패딩 (왼쪽 정렬)
  */
-function padText(text, width) {
+function padText(text: string, width: number): string {
   const visibleLength = stripAnsi(text).length;
   const padding = width - visibleLength;
   if (padding > 0) {
@@ -193,14 +230,14 @@ function padText(text, width) {
 /**
  * ANSI 코드 제거
  */
-function stripAnsi(str) {
+function stripAnsi(str: string): string {
   return str.replace(/\x1b\[[0-9;]*m/g, '');
 }
 
 /**
  * 문자열 자르기 (말줄임)
  */
-function truncate(str, maxLength) {
+function truncate(str: string, maxLength: number): string {
   if (!str) return '';
   if (stripAnsi(str).length <= maxLength) return str;
   return str.substring(0, maxLength - 1) + '\u2026';
@@ -209,7 +246,7 @@ function truncate(str, maxLength) {
 /**
  * 로그 라인 색상 처리
  */
-function colorizeLogLine(line) {
+function colorizeLogLine(line: string): string {
   if (line.includes('[ERROR]')) return chalk.red(line);
   if (line.includes('[WARN]')) return chalk.yellow(line);
   if (line.includes('[INFO]')) return chalk.gray(line);
@@ -219,7 +256,7 @@ function colorizeLogLine(line) {
 /**
  * 세션 로그 테일 읽기 (최근 라인만)
  */
-function readSessionLogTails(sessions) {
+function readSessionLogTails(sessions: SessionInfo[]): SessionLog[] {
   if (!sessions || sessions.length === 0) {
     return [];
   }
@@ -236,13 +273,16 @@ function readSessionLogTails(sessions) {
   });
 
   const sessionsToShow = sortedSessions.slice(0, MAX_LOG_SESSIONS);
-  const linesPerSession = Math.max(1, Math.floor(MAX_LOG_LINES / sessionsToShow.length));
+  const linesPerSession = Math.max(
+    1,
+    Math.floor(MAX_LOG_LINES / sessionsToShow.length)
+  );
 
-  return sessionsToShow.map(session => {
+  return sessionsToShow.map((session) => {
     const logFile = path.join(logsDir, `${session.sessionId}.log`);
     return {
       sessionId: session.sessionId,
-      lines: readLogTail(logFile, linesPerSession)
+      lines: readLogTail(logFile, linesPerSession),
     };
   });
 }
@@ -250,7 +290,7 @@ function readSessionLogTails(sessions) {
 /**
  * 로그 파일의 마지막 부분 읽기
  */
-function readLogTail(filePath, maxLines) {
+function readLogTail(filePath: string, maxLines: number): string[] {
   if (!fs.existsSync(filePath)) {
     return [];
   }
@@ -270,7 +310,7 @@ function readLogTail(filePath, maxLines) {
     const content = buffer.toString('utf-8');
     const lines = content.split(/\r?\n/).filter(Boolean);
     return lines.slice(-maxLines);
-  } catch (error) {
+  } catch {
     return [];
   }
 }
@@ -278,7 +318,7 @@ function readLogTail(filePath, maxLines) {
 /**
  * 경과 시간 계산
  */
-function getElapsedTime(startedAt) {
+function getElapsedTime(startedAt: string): string {
   if (!startedAt) return '?';
   const elapsed = Date.now() - new Date(startedAt).getTime();
   const minutes = Math.floor(elapsed / 60000);
@@ -290,16 +330,24 @@ function getElapsedTime(startedAt) {
 /**
  * 현재 시간 문자열
  */
-function getCurrentTime() {
+function getCurrentTime(): string {
   const now = new Date();
-  return now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  return now.toLocaleTimeString('ko-KR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
 }
 
 /**
  * 대시보드 렌더링
  */
-export function renderDashboard(state, statusMessage = '준비됨') {
-  const lines = [];
+export function renderDashboard(
+  state: ProjectState,
+  statusMessage = '준비됨'
+): void {
+  const lines: string[] = [];
   const innerWidth = DASHBOARD_WIDTH - 2;
   const leftPanelWidth = HALF_WIDTH - 1;
   const rightPanelWidth = DASHBOARD_WIDTH - leftPanelWidth - 3;
@@ -312,10 +360,14 @@ export function renderDashboard(state, statusMessage = '준비됨') {
   const titleText = 'ADA UI Mode';
   const timeText = `[${getCurrentTime()}]`;
   const titleLine = ` ${titleText}${' '.repeat(innerWidth - titleText.length - timeText.length - 1)}${timeText}`;
-  lines.push(chalk.cyan(BOX.vertical) + chalk.cyan.bold(titleLine) + chalk.cyan(BOX.vertical));
+  lines.push(
+    chalk.cyan(BOX.vertical) + chalk.cyan.bold(titleLine) + chalk.cyan(BOX.vertical)
+  );
 
   // 구분선
-  lines.push(chalk.cyan(horizontalLine(DASHBOARD_WIDTH, BOX.teeRight, BOX.teeLeft)));
+  lines.push(
+    chalk.cyan(horizontalLine(DASHBOARD_WIDTH, BOX.teeRight, BOX.teeLeft))
+  );
 
   // 중간 패널 (스프린트 | 세션)
   const sprintLines = renderSprintPanel(state, leftPanelWidth);
@@ -327,22 +379,28 @@ export function renderDashboard(state, statusMessage = '준비됨') {
     const rightLine = sessionLines[i] || ' '.repeat(rightPanelWidth);
     lines.push(
       chalk.cyan(BOX.vertical) +
-      padText(leftLine, leftPanelWidth) +
-      chalk.cyan(BOX.vertical) +
-      padText(rightLine, rightPanelWidth) +
-      chalk.cyan(BOX.vertical)
+        padText(leftLine, leftPanelWidth) +
+        chalk.cyan(BOX.vertical) +
+        padText(rightLine, rightPanelWidth) +
+        chalk.cyan(BOX.vertical)
     );
   }
 
   // Quick Actions 섹션
-  lines.push(chalk.cyan(horizontalLine(DASHBOARD_WIDTH, BOX.teeRight, BOX.teeLeft)));
+  lines.push(
+    chalk.cyan(horizontalLine(DASHBOARD_WIDTH, BOX.teeRight, BOX.teeLeft))
+  );
   const quickActionsLines = renderQuickActions(innerWidth);
-  quickActionsLines.forEach(line => {
-    lines.push(chalk.cyan(BOX.vertical) + padText(line, innerWidth) + chalk.cyan(BOX.vertical));
+  quickActionsLines.forEach((line) => {
+    lines.push(
+      chalk.cyan(BOX.vertical) + padText(line, innerWidth) + chalk.cyan(BOX.vertical)
+    );
   });
 
   // 상태 바
-  lines.push(chalk.cyan(horizontalLine(DASHBOARD_WIDTH, BOX.teeRight, BOX.teeLeft)));
+  lines.push(
+    chalk.cyan(horizontalLine(DASHBOARD_WIDTH, BOX.teeRight, BOX.teeLeft))
+  );
 
   const nextRec = state.nextRecommendation;
   let nextText = '';
@@ -355,7 +413,9 @@ export function renderDashboard(state, statusMessage = '준비됨') {
   }
 
   const statusLine = ` STATUS: ${statusMessage} | ${chalk.green('다음 추천:')} ${nextText}`;
-  lines.push(chalk.cyan(BOX.vertical) + padText(statusLine, innerWidth) + chalk.cyan(BOX.vertical));
+  lines.push(
+    chalk.cyan(BOX.vertical) + padText(statusLine, innerWidth) + chalk.cyan(BOX.vertical)
+  );
 
   // 하단
   lines.push(
@@ -375,8 +435,8 @@ export function renderDashboard(state, statusMessage = '준비됨') {
 /**
  * 스프린트 패널 렌더링
  */
-function renderSprintPanel(state, width) {
-  const lines = [];
+function renderSprintPanel(state: ProjectState, width: number): string[] {
+  const lines: string[] = [];
   const contentWidth = width - 2;
 
   if (!state.isSetup) {
@@ -398,21 +458,28 @@ function renderSprintPanel(state, width) {
     { label: 'IN_DEV', count: state.tasks.inDev.length, color: chalk.yellow },
     { label: 'IN_REVIEW', count: state.tasks.inReview.length, color: chalk.blue },
     { label: 'DONE', count: state.tasks.done.length, color: chalk.green },
-    { label: 'REJECT', count: state.tasks.reject.length, color: chalk.red }
+    { label: 'REJECT', count: state.tasks.reject.length, color: chalk.red },
   ];
 
-  taskStats.forEach(stat => {
+  taskStats.forEach((stat) => {
     if (stat.count > 0) {
-      let taskList = [];
+      let taskList: TaskMetadata[] = [];
       if (stat.label === 'BACKLOG') taskList = state.tasks.backlog;
       else if (stat.label === 'IN_DEV') taskList = state.tasks.inDev;
       else if (stat.label === 'REJECT') taskList = state.tasks.reject;
 
-      const taskIds = taskList.slice(0, 3).map(t => t.id).join(', ');
+      const taskIds = taskList
+        .slice(0, 3)
+        .map((t) => t.id)
+        .join(', ');
       const extra = taskList.length > 3 ? `...` : '';
       lines.push(stat.color(` \u251C\u2500 ${stat.label}: ${stat.count}개`));
       if (taskIds) {
-        lines.push(stat.color(` \u2502  (${truncate(taskIds + extra, contentWidth - 6)})`));
+        lines.push(
+          stat.color(
+            ` \u2502  (${truncate(taskIds + extra, contentWidth - 6)})`
+          )
+        );
       }
     }
   });
@@ -427,19 +494,21 @@ function renderSprintPanel(state, width) {
 /**
  * 세션 패널 렌더링
  */
-function renderSessionPanel(state, width) {
-  const lines = [];
+function renderSessionPanel(state: ProjectState, width: number): string[] {
+  const lines: string[] = [];
 
   lines.push(chalk.white.bold(' SESSIONS'));
 
   if (state.sessions.length === 0) {
     lines.push(chalk.gray(' (활성 세션 없음)'));
   } else {
-    state.sessions.forEach(session => {
+    state.sessions.forEach((session) => {
       const elapsed = getElapsedTime(session.startedAt);
       const icon = session.status === 'active' ? '+' : '-';
       const roleText = `${session.role} (${session.tool})`;
-      lines.push(chalk.green(` ${icon} ${truncate(roleText, width - 10)} - ${elapsed}`));
+      lines.push(
+        chalk.green(` ${icon} ${truncate(roleText, width - 10)} - ${elapsed}`)
+      );
     });
   }
 
@@ -460,7 +529,7 @@ function renderSessionPanel(state, width) {
     return lines;
   }
 
-  state.sessionLogs.forEach(sessionLog => {
+  state.sessionLogs.forEach((sessionLog) => {
     lines.push(chalk.cyan(` ${truncate(sessionLog.sessionId, width - 2)}`));
 
     if (!sessionLog.lines || sessionLog.lines.length === 0) {
@@ -468,7 +537,7 @@ function renderSessionPanel(state, width) {
       return;
     }
 
-    sessionLog.lines.forEach(line => {
+    sessionLog.lines.forEach((line) => {
       const trimmed = truncate(line, width - 2);
       lines.push(colorizeLogLine(` ${trimmed}`));
     });
@@ -480,24 +549,18 @@ function renderSessionPanel(state, width) {
 /**
  * Quick Actions 렌더링
  */
-function renderQuickActions(width) {
-  const lines = [];
+function renderQuickActions(width: number): string[] {
+  const lines: string[] = [];
 
   lines.push(chalk.white.bold(' QUICK ACTIONS'));
   lines.push('');
 
   // 알파벳 키
-  const alphaCol1 = [
-    chalk.yellow('[s]') + ' sessions'
-  ];
+  const alphaCol1 = [chalk.yellow('[s]') + ' sessions'];
 
-  const alphaCol2 = [
-    chalk.yellow('[l]') + ' logs'
-  ];
+  const alphaCol2 = [chalk.yellow('[l]') + ' logs'];
 
-  const alphaCol3 = [
-    chalk.yellow('[t]') + ' status'
-  ];
+  const alphaCol3 = [chalk.yellow('[t]') + ' status'];
 
   const colWidth = Math.floor((width - 4) / 3);
   const rowCount = Math.max(alphaCol1.length, alphaCol2.length, alphaCol3.length);
@@ -510,8 +573,7 @@ function renderQuickActions(width) {
 
   lines.push('');
   lines.push(
-    ' ' + chalk.cyan('[q]') + ' 종료  ' +
-    chalk.cyan('[h]') + ' 도움말'
+    ' ' + chalk.cyan('[q]') + ' 종료  ' + chalk.cyan('[h]') + ' 도움말'
   );
 
   return lines;

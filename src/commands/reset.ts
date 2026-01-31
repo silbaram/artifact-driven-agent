@@ -3,7 +3,11 @@ import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { getWorkspaceDir, isWorkspaceSetup } from '../utils/files.js';
 
-export async function reset(options = {}) {
+export interface ResetOptions {
+  force?: boolean;
+}
+
+export async function reset(options: ResetOptions = {}): Promise<void> {
   const workspace = getWorkspaceDir();
 
   if (!isWorkspaceSetup()) {
@@ -17,9 +21,11 @@ export async function reset(options = {}) {
       {
         type: 'confirm',
         name: 'confirm',
-        message: chalk.red('ai-dev-team 디렉토리를 초기화하시겠습니까? (모든 작업 내용이 삭제됩니다)'),
-        default: false
-      }
+        message: chalk.red(
+          'ai-dev-team 디렉토리를 초기화하시겠습니까? (모든 작업 내용이 삭제됩니다)'
+        ),
+        default: false,
+      },
     ]);
 
     if (!answer.confirm) {
@@ -33,7 +39,7 @@ export async function reset(options = {}) {
 
   // roles, artifacts, rules 내용 삭제 (.gitkeep 유지)
   const dirs = ['roles', 'artifacts', 'rules'];
-  
+
   for (const dir of dirs) {
     const dirPath = `${workspace}/${dir}`;
     if (fs.existsSync(dirPath)) {

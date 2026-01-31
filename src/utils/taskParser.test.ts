@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 import { parseTaskMetadata } from './taskParser.js';
 
-test('parseTaskMetadata - 표준 포맷 파싱', (t) => {
+test('parseTaskMetadata - 표준 포맷 파싱', () => {
   const content = `
 # TASK-001: 로그인 기능
 
@@ -17,7 +17,7 @@ test('parseTaskMetadata - 표준 포맷 파싱', (t) => {
 ...
 `;
   const result = parseTaskMetadata(content, 'task-001.md');
-  
+
   assert.strictEqual(result.id, 'task-001');
   assert.strictEqual(result.title, '로그인 기능');
   assert.strictEqual(result.status, 'IN_DEV');
@@ -26,7 +26,7 @@ test('parseTaskMetadata - 표준 포맷 파싱', (t) => {
   assert.strictEqual(result.assignee, 'developer');
 });
 
-test('parseTaskMetadata - 템플릿 값 잔존 (선택지 포함)', (t) => {
+test('parseTaskMetadata - 템플릿 값 잔존 (선택지 포함)', () => {
   const content = `
 | 상태 | DONE / REJECTED |
 `;
@@ -36,7 +36,7 @@ test('parseTaskMetadata - 템플릿 값 잔존 (선택지 포함)', (t) => {
   assert.strictEqual(result.status, 'DONE');
 });
 
-test('parseTaskMetadata - 제목 파싱 변형', (t) => {
+test('parseTaskMetadata - 제목 파싱 변형', () => {
   // # TASK-NNN 없이 그냥 # 제목 인 경우
   const content = `# 회원가입 API 구현`;
   const result = parseTaskMetadata(content, 'task-003.md');
@@ -44,7 +44,7 @@ test('parseTaskMetadata - 제목 파싱 변형', (t) => {
   assert.strictEqual(result.id, 'task-003'); // 파일명에서 추출
 });
 
-test('parseTaskMetadata - 공백 불규칙 허용', (t) => {
+test('parseTaskMetadata - 공백 불규칙 허용', () => {
   const content = `
 |상태|  DONE  |
 |  우선순위|P0|
@@ -54,7 +54,7 @@ test('parseTaskMetadata - 공백 불규칙 허용', (t) => {
   assert.strictEqual(result.priority, 'P0');
 });
 
-test('parseTaskMetadata - 영문 키 지원 여부 확인', (t) => {
+test('parseTaskMetadata - 영문 키 지원 여부 확인', () => {
   // AI가 실수로 영문 템플릿을 사용하거나 영문으로 바꾼 경우
   const content = `
 | Status | IN_DEV |
@@ -66,7 +66,7 @@ test('parseTaskMetadata - 영문 키 지원 여부 확인', (t) => {
   assert.strictEqual(result.priority, 'P2');
 });
 
-test('parseTaskMetadata - 리뷰 리포트 존재 감지', (t) => {
+test('parseTaskMetadata - 리뷰 리포트 존재 감지', () => {
   const content = `
 ## Review
 - PASS

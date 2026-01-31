@@ -1,6 +1,6 @@
 import fs from 'fs-extra';
 import path from 'path';
-import { spawn } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import {
@@ -21,15 +21,62 @@ import {
   getPendingQuestions
 } from '../utils/sessionState.js';
 import { getToolForRole } from '../utils/config.js';
+import type { Tool, SessionInfo } from '../types/index.js';
+
+/**
+ * 도구별 명령어 설정
+ */
+interface ToolConfig {
+  cmd: string;
+  args: string[];
+  env?: Record<string, string>;
+  automation: 'perfect' | 'manual';
+  instruction?: string;
+}
+
+/**
+ * 에이전트 세션 실행 옵션
+ */
+interface ExecuteAgentSessionOptions {
+  systemPromptOverride?: string;
+  headless?: boolean;
+  exitOnSignal?: boolean;
+  captureOutput?: boolean;
+  onSpawn?: (child: ChildProcess) => void;
+}
+
+/**
+ * 세션 정보 객체
+ */
+interface SessionInfoObject {
+  session_id: string;
+  role: string;
+  tool: Tool | string;
+  template: string;
+  started_at: string;
+  status: string;
+  pid?: number;
+  ended_at?: string;
+  termination_reason?: string;
+  error?: string;
+  output?: string;
+}
+
+/**
+ * 세션 결과
+ */
+interface SessionResult extends SessionInfoObject {
+  output?: string;
+}
 
 /**
  * [API] AI 에이전트 세션 실행 (핵심 로직)
- * @param {string} role - 실행할 역할 (예: 'developer')
- * @param {string} tool - 사용할 도구 (예: 'claude')
- * @param {object} options - 추가 옵션
- * @returns {Promise<object>} 세션 결과 정보
  */
-export async function executeAgentSession(role, tool, options = {}) {
+export async function executeAgentSession(
+  role: string,
+  tool: string,
+  options: ExecuteAgentSessionOptions = {}
+): Promise<SessionResult> {
   const roles = getAvailableRoles();
   const tools = ['claude', 'codex', 'gemini', 'copilot'];
 
@@ -44,7 +91,7 @@ export async function executeAgentSession(role, tool, options = {}) {
   }
 
   const workspace = getWorkspaceDir();
-  const template = getCurrentTemplate();
+  const template = getCurrentTemplate() || 'unknown';
   const sessionId = generateSessionId();
   const sessionsDir = getSessionsDir();
   const logsDir = getLogsDir();
@@ -55,7 +102,7 @@ export async function executeAgentSession(role, tool, options = {}) {
   fs.ensureDirSync(logsDir);
 
   // 세션 정보 객체
-  const sessionInfo = {
+  const sessionInfo: SessionInfoObject = {
     session_id: sessionId,
     role: role,
     tool: tool,
@@ -68,15 +115,14 @@ export async function executeAgentSession(role, tool, options = {}) {
 
   // 로그 헬퍼
   const logFile = path.join(logsDir, `${sessionId}.log`);
-  const logMessage = (level, msg) => {
+  const logMessage = (level: string, msg: string): void => {
     const line = `[${getTimestamp()}] [${level}] ${msg}\n`;
     fs.appendFileSync(logFile, line);
-    // 옵션에 따라 콘솔 출력 제어 가능 (현재는 항상 출력)
   };
 
   // 세션 정리 함수 (시그널 핸들러 및 정상 종료에서 공통 사용)
   let isCleanedUp = false;
-  const cleanupSession = (status, reason = null) => {
+  const cleanupSession = (status: string, reason: string | null = null): void => {
     if (isCleanedUp) return;
     isCleanedUp = true;
 
@@ -96,7 +142,7 @@ export async function executeAgentSession(role, tool, options = {}) {
   };
 
   // 시그널 핸들러 (Ctrl+C 등 강제 종료 시 세션 정리)
-  const handleSignal = (signal) => {
+  const handleSignal = (signal: string): void => {
     logMessage('INFO', `시그널 수신: ${signal}`);
     cleanupSession('completed', `사용자 종료 (${signal})`);
 
@@ -120,11 +166,11 @@ export async function executeAgentSession(role, tool, options = {}) {
     logMessage('INFO', `세션 시작: role=${role}, tool=${tool}, template=${template}`);
 
     // 멀티 세션 등록
-    registerSession(sessionId, role, tool);
+    registerSession(sessionId, role, tool as Tool);
     logMessage('INFO', `세션 등록: ${sessionId}`);
 
     // 역할 파일 로드 (옵션으로 오버라이드 가능)
-    let systemPrompt;
+    let systemPrompt: string;
     if (options.systemPromptOverride) {
       systemPrompt = options.systemPromptOverride;
       logMessage('INFO', '시스템 프롬프트 오버라이드 사용됨');
@@ -148,7 +194,7 @@ export async function executeAgentSession(role, tool, options = {}) {
     }
 
     // AI 도구 프로세스 실행
-    const handleSpawn = (child) => {
+    const handleSpawn = (child: ChildProcess): void => {
       sessionInfo.pid = child.pid;
       fs.writeFileSync(sessionFile, JSON.stringify(sessionInfo, null, 2));
       updateSessionDetails(sessionId, { pid: child.pid });
@@ -170,18 +216,20 @@ export async function executeAgentSession(role, tool, options = {}) {
     cleanupSession('completed');
 
     // 캡처된 출력 반환
-    return { ...sessionInfo, output };
+    return { ...sessionInfo, output: output || undefined };
 
   } catch (error) {
     // 시그널 핸들러 제거
     process.removeListener('SIGINT', handleSignal);
     process.removeListener('SIGTERM', handleSignal);
 
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
     // 에러가 사용자 종료(exit code 비정상)인 경우 completed로 처리
-    const isUserTermination = error.message && (
-      error.message.includes('exited with code 130') ||  // SIGINT
-      error.message.includes('exited with code 143') ||  // SIGTERM
-      error.message.includes('exited with code 1')       // 일반 종료
+    const isUserTermination = errorMessage && (
+      errorMessage.includes('exited with code 130') ||  // SIGINT
+      errorMessage.includes('exited with code 143') ||  // SIGTERM
+      errorMessage.includes('exited with code 1')       // 일반 종료
     );
 
     if (isUserTermination) {
@@ -190,9 +238,9 @@ export async function executeAgentSession(role, tool, options = {}) {
     }
 
     // 실제 에러 처리
-    sessionInfo.error = error.message;
-    cleanupSession('error', error.message);
-    logMessage('ERROR', error.message);
+    sessionInfo.error = errorMessage;
+    cleanupSession('error', errorMessage);
+    logMessage('ERROR', errorMessage);
 
     throw error;
   }
@@ -202,7 +250,7 @@ export async function executeAgentSession(role, tool, options = {}) {
  * [CLI] 실행 명령어 핸들러
  * 사용자 입력을 처리하고 executeAgentSession을 호출
  */
-export async function runCommand(role, tool) {
+export async function runCommand(role?: string, tool?: string): Promise<void> {
   if (!isWorkspaceSetup()) {
     console.log(chalk.red('❌ 먼저 setup을 실행하세요.'));
     console.log(chalk.gray('  ada setup'));
@@ -226,16 +274,26 @@ export async function runCommand(role, tool) {
 
     // 2. 도구 자동 선택 (입력 없으면 설정 파일 참조)
     if (!tool) {
+      if (!role) {
+        throw new Error('역할이 선택되지 않았습니다.');
+      }
       tool = getToolForRole(role);
+      if (!tool) {
+        throw new Error('도구를 선택할 수 없습니다.');
+      }
       console.log(chalk.gray(`ℹ️  설정된 기본 도구를 사용합니다: ${tool}`));
     }
 
     // 3. 세션 실행
+    if (!role || !tool) {
+      throw new Error('역할과 도구가 모두 필요합니다.');
+    }
     await executeAgentSession(role, tool);
 
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(chalk.red('\n❌ 실행 중 오류가 발생했습니다:'));
-    console.error(chalk.white(error.message));
+    console.error(chalk.white(errorMessage));
     process.exit(1);
   }
 }
@@ -246,11 +304,11 @@ export { runCommand as run };
 export { buildSystemPrompt };
 
 
-// ============================================================================ 
+// ============================================================================
 // 내부 헬퍼 함수들
-// ============================================================================ 
+// ============================================================================
 
-function printSessionBanner(role, tool, sessionId, template) {
+function printSessionBanner(role: string, tool: string, sessionId: string, template: string): void {
   // 다른 활성 세션 정보
   const activeSessions = getActiveSessions().filter(s => s.sessionId !== sessionId);
   const pendingQuestions = getPendingQuestions();
@@ -265,7 +323,7 @@ function printSessionBanner(role, tool, sessionId, template) {
   console.log(chalk.cyan('━'.repeat(60)));
   console.log('');
 
-  const roleEmojis = {
+  const roleEmojis: Record<string, string> = {
     'analyzer': '🔍',
     'planner': '📋',
     'improver': '🔧',
@@ -309,7 +367,7 @@ function printSessionBanner(role, tool, sessionId, template) {
   console.log('');
 }
 
-function buildSystemPrompt(workspace, role, roleContent) {
+function buildSystemPrompt(workspace: string, role: string, roleContent: string): string {
   const artifactsDir = path.join(workspace, 'artifacts');
   const rulesDir = path.join(workspace, 'rules');
 
@@ -318,7 +376,7 @@ function buildSystemPrompt(workspace, role, roleContent) {
   prompt += '\n\n---\n\n';
 
   // 1. 규칙 문서 - 역할별 필수 규칙만 포함
-  const roleRules = {
+  const roleRules: Record<string, string[]> = {
     planner: ['iteration.md', 'escalation.md', 'document-priority.md'],
     improver: ['iteration.md', 'escalation.md', 'document-priority.md', 'rfc.md'],
     developer: ['iteration.md', 'escalation.md', 'rollback.md', 'document-priority.md', 'rfc.md'],
@@ -582,12 +640,18 @@ function buildSystemPrompt(workspace, role, roleContent) {
   return prompt;
 }
 
-async function launchTool(tool, systemPrompt, promptFile, logMessage, options = {}) {
+async function launchTool(
+  tool: string,
+  systemPrompt: string,
+  promptFile: string,
+  logMessage: (level: string, msg: string) => void,
+  options: ExecuteAgentSessionOptions = {}
+): Promise<string | null> {
   // 프롬프트 파일의 상대 경로 (작업 디렉토리 기준)
   const relativePromptPath = path.relative(process.cwd(), promptFile);
 
   // 도구별 설정
-  const commands = {
+  const commands: Record<string, ToolConfig> = {
     claude: {
       cmd: 'claude',
       args: ['--system-prompt-file', promptFile],
@@ -618,7 +682,7 @@ async function launchTool(tool, systemPrompt, promptFile, logMessage, options = 
   const config = commands[tool];
   let { cmd, args } = config;
   let usePromptStdin = false;
-  let promptInput = null;
+  let promptInput: string | null = null;
 
   if (options.captureOutput) {
     // captureOutput 모드일 때 Claude는 --print 옵션 필요
@@ -688,7 +752,7 @@ async function launchTool(tool, systemPrompt, promptFile, logMessage, options = 
       };
 
       // 캡처 모드에 따라 stdio 설정 변경
-      const stdioConfig = options.captureOutput
+      const stdioConfig: any = options.captureOutput
         ? (usePromptStdin ? ['pipe', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe'])
         : 'inherit';
 
@@ -706,10 +770,10 @@ async function launchTool(tool, systemPrompt, promptFile, logMessage, options = 
       let capturedError = '';
 
       if (options.captureOutput) {
-        child.stdout.on('data', (data) => {
+        child.stdout?.on('data', (data) => {
           capturedOutput += data.toString();
         });
-        child.stderr.on('data', (data) => {
+        child.stderr?.on('data', (data) => {
           capturedError += data.toString();
         });
       }

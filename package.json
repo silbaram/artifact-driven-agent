@@ -3,19 +3,24 @@
   "version": "0.2.0",
   "description": "CLI 기반 멀티 AI 에이전트 개발 프레임워크 - AI가 규칙을 어기지 못하게 하는 문서 기반 개발",
   "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
   "bin": {
-    "ada": "./bin/cli.js"
+    "ada": "./dist/bin/cli.js"
   },
   "files": [
-    "bin",
-    "src",
+    "dist",
     "core",
     "templates",
     "examples",
     "ai-dev-team"
   ],
   "scripts": {
-    "test": "node --test src/**/*.test.js",
+    "build": "tsc && node scripts/add-shebang.js",
+    "dev": "tsx watch bin/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test dist/src/**/*.test.js",
+    "pretest": "npm run build",
     "lint": "echo 'No linter configured'"
   },
   "keywords": [
@@ -44,5 +49,13 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^9.0.9",
+    "@types/node": "^25.1.0",
+    "rimraf": "^6.1.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
   }
 }

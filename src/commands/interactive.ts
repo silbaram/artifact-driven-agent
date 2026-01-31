@@ -17,11 +17,12 @@ import {
   getAvailableTools
 } from '../utils/files.js';
 import { getToolForRole } from '../utils/config.js';
+import type { Tool } from '../types/index.js';
 
 /**
  * 대화형 메인 메뉴 (ada 명령어 인자 없이 실행 시)
  */
-export async function interactive() {
+export async function interactive(): Promise<void> {
   console.log('');
   console.log(chalk.cyan('━'.repeat(60)));
   console.log(chalk.cyan.bold('🤖 Artifact-Driven AI Agent Framework'));
@@ -61,12 +62,12 @@ export async function interactive() {
         choices: [
           new inquirer.Separator('── 핵심 기능 ──'),
           { name: '🤖 역할별 에이전트 실행 (설정 도구)', value: 'run' },
-          
+
           new inquirer.Separator('── 관리 기능 ──'),
           { name: '🏃 스프린트 관리 (Sprint)', value: 'sprint' },
           { name: '📊 상태 및 모니터링 (Status & Sessions)', value: 'monitor' },
           { name: '📝 문서 관리 (Docs)', value: 'docs' },
-          
+
           new inquirer.Separator('── 설정 및 기타 ──'),
           { name: '⚙️  설정 (Config)', value: 'config' },
           { name: '🛠️  프로젝트 관리 (Upgrade/Validate)', value: 'project' },
@@ -83,15 +84,16 @@ export async function interactive() {
     try {
       await handleMenuAction(action);
     } catch (err) {
-      console.error(chalk.red(`❌ 오류 발생: ${err.message}`));
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error(chalk.red(`❌ 오류 발생: ${errorMessage}`));
     }
-    
+
     // 작업 완료 후 줄바꿈
     console.log('');
   }
 }
 
-async function handleMenuAction(action) {
+async function handleMenuAction(action: string): Promise<void> {
   switch (action) {
     case 'run':
       await handleRunAgent();
@@ -104,7 +106,7 @@ async function handleMenuAction(action) {
     case 'monitor':
       await handleMonitorMenu();
       break;
-      
+
     case 'docs':
       await handleDocsMenu();
       break;
@@ -122,7 +124,7 @@ async function handleMenuAction(action) {
 /**
  * 2. 에이전트 실행 메뉴
  */
-async function handleRunAgent() {
+async function handleRunAgent(): Promise<void> {
   const roles = getAvailableRoles();
   const tools = getAvailableTools();
 
@@ -131,7 +133,7 @@ async function handleRunAgent() {
     return;
   }
 
-  const roleChoices = roles.map(r => ({
+  const roleChoices: Array<{ name: string; value: string | null } | inquirer.Separator> = roles.map(r => ({
     name: `${getRoleDescription(r)} (설정: ${getToolForRole(r)})`,
     value: r
   }));
@@ -151,9 +153,9 @@ async function handleRunAgent() {
   if (!role) return;
 
   const configuredTool = getToolForRole(role);
-  let selectedTool = configuredTool;
+  let selectedTool: string = configuredTool;
 
-  if (!tools.includes(configuredTool)) {
+  if (!tools.includes(configuredTool as Tool)) {
     console.log(chalk.yellow(`⚠️  설정된 도구(${configuredTool})가 지원 목록에 없습니다.`));
     const { tool } = await inquirer.prompt([
       {
@@ -207,7 +209,7 @@ async function handleRunAgent() {
 /**
  * 3. 스프린트 메뉴
  */
-async function handleSprintMenu() {
+async function handleSprintMenu(): Promise<void> {
   const { subAction } = await inquirer.prompt([{
     type: 'list',
     name: 'subAction',
@@ -232,7 +234,7 @@ async function handleSprintMenu() {
       message: '추가할 Task ID를 공백으로 구분하여 입력하세요 (예: task-001 task-002):'
     }]);
     if (taskIds.trim()) {
-      await sprintCommand('add', taskIds.split(' '));
+      await sprintCommand('add', ...taskIds.split(' '));
     }
   } else if (subAction === 'close') {
      const { closeOpt } = await inquirer.prompt([{
@@ -245,29 +247,18 @@ async function handleSprintMenu() {
         { name: '유지 (모든파일 유지)', value: ['--keep-all'] }
       ]
     }]);
-    // close는 내부적으로 commander program 객체 구조에 의존할 수 있으므로 직접 호출 시 주의 필요
-    // 여기서는 cli.js를 통하지 않고 직접 함수 호출하므로, sprintCommand 구현 확인 필요
-    // sprintCommand는 (action, tasks, options) 시그니처를 가짐 (commander action wrapper)
-    // 하지만 commander action은 (arg1, arg2..., options) 형태임.
-    
-    // 단순화를 위해 여기서는 sprint.js의 로직을 직접 호출하는게 좋지만,
-    // 현재 구조상 sprintCommand는 commander action 핸들러임.
-    // 임시로 옵션 객체 흉내내서 전달
-    const options = {};
-    if (closeOpt.includes('--clean')) options.clean = true;
-    if (closeOpt.includes('--keep-all')) options.keepAll = true;
-    
-    await sprintCommand('close', [], options);
+
+    await sprintCommand('close', ...closeOpt);
 
   } else {
-    await sprintCommand(subAction, []);
+    await sprintCommand(subAction);
   }
 }
 
 /**
  * 5. 모니터링 메뉴
  */
-async function handleMonitorMenu() {
+async function handleMonitorMenu(): Promise<void> {
   const { subAction } = await inquirer.prompt([{
     type: 'list',
     name: 'subAction',
@@ -292,7 +283,7 @@ async function handleMonitorMenu() {
 /**
  * 5-1. 세션 메뉴
  */
-async function handleSessionsMenu() {
+async function handleSessionsMenu(): Promise<void> {
   await sessions({});
 
   const { nextAction } = await inquirer.prompt([{
@@ -313,7 +304,7 @@ async function handleSessionsMenu() {
 /**
  * 6. 문서 메뉴
  */
-async function handleDocsMenu() {
+async function handleDocsMenu(): Promise<void> {
    const { subAction } = await inquirer.prompt([{
     type: 'list',
     name: 'subAction',
@@ -346,7 +337,7 @@ async function handleDocsMenu() {
 /**
  * 8. 프로젝트 관리 메뉴
  */
-async function handleProjectMenu() {
+async function handleProjectMenu(): Promise<void> {
   const { subAction } = await inquirer.prompt([{
     type: 'list',
     name: 'subAction',
@@ -366,8 +357,8 @@ async function handleProjectMenu() {
 
 // --- Helpers ---
 
-function getRoleDescription(role) {
-  const descriptions = {
+function getRoleDescription(role: string): string {
+  const descriptions: Record<string, string> = {
     planner: 'planner      - 요구사항 수집, Task 분해',
     improver: 'improver     - 기존 기능 개선 기획',
     developer: 'developer    - 코드 구현 (범용)',
@@ -381,8 +372,8 @@ function getRoleDescription(role) {
   return descriptions[role] || role;
 }
 
-function getToolDescription(tool) {
-  const descriptions = {
+function getToolDescription(tool: Tool | string): string {
+  const descriptions: Record<string, string> = {
     claude: 'Claude       - Anthropic Claude CLI',
     codex: 'Codex        - OpenAI Codex CLI',
     gemini: 'Gemini       - Google Gemini CLI',

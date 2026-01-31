@@ -2,43 +2,62 @@ import chalk from 'chalk';
 import { sessions } from '../commands/sessions.js';
 import { logs } from '../commands/logs.js';
 import { status } from '../commands/status.js';
+import type { ProjectState } from '../types/index.js';
+
+/**
+ * Quick Action 결과
+ */
+export interface QuickActionResult {
+  handled: boolean;
+  special?: string;
+  error?: string;
+}
 
 /**
  * Quick Action 정의
  */
-export const QUICK_ACTIONS = {
-  'q': {
+export interface QuickAction {
+  label: string;
+  description: string;
+  handler: ((state: ProjectState) => Promise<void>) | null;
+}
+
+/**
+ * Quick Action 정의
+ */
+export const QUICK_ACTIONS: Record<string, QuickAction> = {
+  q: {
     label: '종료',
     description: '대시보드 종료',
-    handler: null // 특수 처리
+    handler: null, // 특수 처리
   },
-  'h': {
+  h: {
     label: '도움말',
     description: '도움말 표시',
-    handler: showHelp
+    handler: showHelp,
   },
   // 알파벳 키 추가 명령어
-  's': {
+  s: {
     label: 'sessions',
     description: '활성 세션 목록',
-    handler: runSessions
+    handler: runSessions,
   },
-  'l': {
+  l: {
     label: 'logs',
     description: '최근 세션 로그',
-    handler: runLogs
+    handler: runLogs,
   },
-  't': {
+  t: {
     label: 'status',
     description: '프로젝트 상태 확인',
-    handler: runStatus
-  }
+    handler: runStatus,
+  },
 };
 
 /**
  * 세션 목록 표시
  */
-async function runSessions() {
+async function runSessions(): Promise<void> {
   console.log('');
   await sessions({});
   console.log('\n계속하려면 아무 키나 누르세요...');
@@ -47,7 +66,7 @@ async function runSessions() {
 /**
  * 로그 확인
  */
-async function runLogs() {
+async function runLogs(): Promise<void> {
   console.log('');
   await logs();
   console.log('\n계속하려면 아무 키나 누르세요...');
@@ -56,7 +75,7 @@ async function runLogs() {
 /**
  * 프로젝트 상태 확인
  */
-async function runStatus() {
+async function runStatus(): Promise<void> {
   console.log('');
   await status();
   console.log('\n계속하려면 아무 키나 누르세요...');
@@ -65,7 +84,7 @@ async function runStatus() {
 /**
  * 도움말 표시
  */
-async function showHelp() {
+async function showHelp(): Promise<void> {
   console.log('');
   console.log(chalk.cyan('━'.repeat(60)));
   console.log(chalk.cyan.bold(' ADA UI Mode 도움말'));
@@ -90,7 +109,10 @@ async function showHelp() {
 /**
  * Quick Action 실행
  */
-export async function executeQuickAction(key, state) {
+export async function executeQuickAction(
+  key: string,
+  state: ProjectState
+): Promise<QuickActionResult> {
   const action = QUICK_ACTIONS[key];
   if (!action) {
     return { handled: false };
@@ -105,7 +127,8 @@ export async function executeQuickAction(key, state) {
     await action.handler(state);
     return { handled: true };
   } catch (error) {
-    console.error(chalk.red(`액션 실행 오류: ${error.message}`));
-    return { handled: true, error: error.message };
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(chalk.red(`액션 실행 오류: ${message}`));
+    return { handled: true, error: message };
   }
 }

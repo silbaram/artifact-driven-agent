@@ -13,10 +13,22 @@ import {
   getCurrentTemplate,
   isWorkspaceSetup,
   copyDirMerge,
-  getTimestamp
 } from '../utils/files.js';
+import type { VersionInfo } from '../types/index.js';
 
-export async function upgrade(options = {}) {
+export interface UpgradeOptions {
+  force?: boolean;
+  dryRun?: boolean;
+  rollback?: boolean;
+}
+
+interface Change {
+  type: 'ADD' | 'UPDATE';
+  category: string;
+  file: string;
+}
+
+export async function upgrade(options: UpgradeOptions = {}): Promise<void> {
   // 작업공간 확인
   if (!isWorkspaceSetup()) {
     console.log(chalk.red('❌ 작업공간이 세팅되어 있지 않습니다.'));
@@ -39,8 +51,8 @@ export async function upgrade(options = {}) {
           type: 'confirm',
           name: 'continue',
           message: '업그레이드를 계속하시겠습니까?',
-          default: true
-        }
+          default: true,
+        },
       ]);
 
       if (!answer.continue) {
@@ -53,12 +65,13 @@ export async function upgrade(options = {}) {
     workspaceVersionInfo = {
       packageVersion: '0.0.0',
       workspaceVersion: '0.0.0',
-      template: currentTemplate,
-      lastUpgrade: null
+      template: currentTemplate || '',
+      lastUpgrade: '',
     };
   }
 
-  const workspaceVersion = workspaceVersionInfo.workspaceVersion || workspaceVersionInfo.packageVersion;
+  const workspaceVersion =
+    workspaceVersionInfo.workspaceVersion || workspaceVersionInfo.packageVersion;
 
   console.log('');
   console.log(chalk.cyan('━'.repeat(50)));
@@ -79,7 +92,9 @@ export async function upgrade(options = {}) {
 
   if (versionDiff < 0) {
     console.log(chalk.yellow('⚠️  작업공간 버전이 패키지 버전보다 높습니다.'));
-    console.log(chalk.gray('   개발 중이거나 다운그레이드된 패키지일 수 있습니다.'));
+    console.log(
+      chalk.gray('   개발 중이거나 다운그레이드된 패키지일 수 있습니다.')
+    );
 
     if (!options.force) {
       const answer = await inquirer.prompt([
@@ -87,8 +102,8 @@ export async function upgrade(options = {}) {
           type: 'confirm',
           name: 'continue',
           message: '그래도 업그레이드하시겠습니까?',
-          default: false
-        }
+          default: false,
+        },
       ]);
 
       if (!answer.continue) {
@@ -111,13 +126,13 @@ export async function upgrade(options = {}) {
   }
 
   // 실제 업그레이드
-  await performUpgrade(workspaceVersion, packageVersion, options);
+  await performUpgrade(workspaceVersion, packageVersion);
 }
 
 /**
  * 롤백 처리
  */
-async function handleRollback() {
+async function handleRollback(): Promise<void> {
   const backupDir = getBackupDir();
 
   if (!fs.existsSync(backupDir)) {
@@ -125,8 +140,9 @@ async function handleRollback() {
     process.exit(1);
   }
 
-  const backups = fs.readdirSync(backupDir)
-    .filter(d => d.startsWith('upgrade-'))
+  const backups = fs
+    .readdirSync(backupDir)
+    .filter((d) => d.startsWith('upgrade-'))
     .sort()
     .reverse();
 
@@ -152,8 +168,8 @@ async function handleRollback() {
       type: 'list',
       name: 'backup',
       message: '복원할 백업을 선택하세요:',
-      choices: backups.map((b, i) => ({ name: `${i + 1}. ${b}`, value: b }))
-    }
+      choices: backups.map((b, i) => ({ name: `${i + 1}. ${b}`, value: b })),
+    },
   ]);
 
   const selectedBackup = path.join(backupDir, answer.backup);
@@ -167,8 +183,8 @@ async function handleRollback() {
       type: 'confirm',
       name: 'confirm',
       message: '계속하시겠습니까?',
-      default: false
-    }
+      default: false,
+    },
   ]);
 
   if (!confirm.confirm) {
@@ -180,7 +196,7 @@ async function handleRollback() {
   console.log(chalk.gray('복원 중...'));
 
   // roles, rules 복원
-  ['roles', 'rules'].forEach(dir => {
+  ['roles', 'rules'].forEach((dir) => {
     const backupPath = path.join(selectedBackup, dir);
     const workspacePath = path.join(workspace, dir);
 
@@ -203,7 +219,10 @@ async function handleRollback() {
 /**
  * Dry-run 수행
  */
-async function performDryRun(workspaceVersion, packageVersion) {
+async function performDryRun(
+  workspaceVersion: string,
+  packageVersion: string
+): Promise<void> {
   const packageRoot = getPackageRoot();
   const workspace = getWorkspaceDir();
   const template = getCurrentTemplate();
@@ -211,16 +230,16 @@ async function performDryRun(workspaceVersion, packageVersion) {
   console.log(chalk.cyan('🔍 변경 사항 미리보기 (실제 변경 없음)'));
   console.log('');
 
-  const changes = [];
+  const changes: Change[] = [];
 
   // roles 디렉토리 비교
   const coreRoles = path.join(packageRoot, 'core', 'roles');
-  const templateRoles = path.join(packageRoot, 'templates', template, 'roles');
+  const templateRoles = path.join(packageRoot, 'templates', template || '', 'roles');
   const workspaceRoles = path.join(workspace, 'roles');
 
   if (fs.existsSync(coreRoles)) {
-    const coreFiles = fs.readdirSync(coreRoles).filter(f => f.endsWith('.md'));
-    coreFiles.forEach(file => {
+    const coreFiles = fs.readdirSync(coreRoles).filter((f) => f.endsWith('.md'));
+    coreFiles.forEach((file) => {
       const workspaceFile = path.join(workspaceRoles, file);
       if (fs.existsSync(workspaceFile)) {
         changes.push({ type: 'UPDATE', category: 'roles', file });
@@ -231,8 +250,10 @@ async function performDryRun(workspaceVersion, packageVersion) {
   }
 
   if (fs.existsSync(templateRoles)) {
-    const templateFiles = fs.readdirSync(templateRoles).filter(f => f.endsWith('.md'));
-    templateFiles.forEach(file => {
+    const templateFiles = fs
+      .readdirSync(templateRoles)
+      .filter((f) => f.endsWith('.md'));
+    templateFiles.forEach((file) => {
       const workspaceFile = path.join(workspaceRoles, file);
       if (fs.existsSync(workspaceFile)) {
         changes.push({ type: 'UPDATE', category: 'roles', file });
@@ -244,12 +265,12 @@ async function performDryRun(workspaceVersion, packageVersion) {
 
   // rules 디렉토리 비교
   const coreRules = path.join(packageRoot, 'core', 'rules');
-  const templateRules = path.join(packageRoot, 'templates', template, 'rules');
+  const templateRules = path.join(packageRoot, 'templates', template || '', 'rules');
   const workspaceRules = path.join(workspace, 'rules');
 
   if (fs.existsSync(coreRules)) {
-    const coreFiles = fs.readdirSync(coreRules).filter(f => f.endsWith('.md'));
-    coreFiles.forEach(file => {
+    const coreFiles = fs.readdirSync(coreRules).filter((f) => f.endsWith('.md'));
+    coreFiles.forEach((file) => {
       const workspaceFile = path.join(workspaceRules, file);
       if (fs.existsSync(workspaceFile)) {
         changes.push({ type: 'UPDATE', category: 'rules', file });
@@ -260,8 +281,10 @@ async function performDryRun(workspaceVersion, packageVersion) {
   }
 
   if (fs.existsSync(templateRules)) {
-    const templateFiles = fs.readdirSync(templateRules).filter(f => f.endsWith('.md'));
-    templateFiles.forEach(file => {
+    const templateFiles = fs
+      .readdirSync(templateRules)
+      .filter((f) => f.endsWith('.md'));
+    templateFiles.forEach((file) => {
       const workspaceFile = path.join(workspaceRules, file);
       if (fs.existsSync(workspaceFile)) {
         changes.push({ type: 'UPDATE', category: 'rules', file });
@@ -273,7 +296,7 @@ async function performDryRun(workspaceVersion, packageVersion) {
 
   // 중복 제거
   const uniqueChanges = Array.from(
-    new Map(changes.map(c => [`${c.category}/${c.file}`, c])).values()
+    new Map(changes.map((c) => [`${c.category}/${c.file}`, c])).values()
   );
 
   if (uniqueChanges.length === 0) {
@@ -284,12 +307,12 @@ async function performDryRun(workspaceVersion, packageVersion) {
   console.log(chalk.white.bold('📋 변경될 파일:'));
   console.log('');
 
-  const addedFiles = uniqueChanges.filter(c => c.type === 'ADD');
-  const updatedFiles = uniqueChanges.filter(c => c.type === 'UPDATE');
+  const addedFiles = uniqueChanges.filter((c) => c.type === 'ADD');
+  const updatedFiles = uniqueChanges.filter((c) => c.type === 'UPDATE');
 
   if (addedFiles.length > 0) {
     console.log(chalk.green('  추가될 파일:'));
-    addedFiles.forEach(c => {
+    addedFiles.forEach((c) => {
       console.log(chalk.gray(`    + ${c.category}/${c.file}`));
     });
     console.log('');
@@ -297,7 +320,7 @@ async function performDryRun(workspaceVersion, packageVersion) {
 
   if (updatedFiles.length > 0) {
     console.log(chalk.yellow('  업데이트될 파일:'));
-    updatedFiles.forEach(c => {
+    updatedFiles.forEach((c) => {
       console.log(chalk.gray(`    ↻ ${c.category}/${c.file}`));
     });
     console.log('');
@@ -312,7 +335,10 @@ async function performDryRun(workspaceVersion, packageVersion) {
 /**
  * 실제 업그레이드 수행
  */
-async function performUpgrade(workspaceVersion, packageVersion, options) {
+async function performUpgrade(
+  workspaceVersion: string,
+  packageVersion: string
+): Promise<void> {
   const packageRoot = getPackageRoot();
   const workspace = getWorkspaceDir();
   const template = getCurrentTemplate();
@@ -325,7 +351,7 @@ async function performUpgrade(workspaceVersion, packageVersion, options) {
   fs.ensureDirSync(backupPath);
 
   // roles, rules 백업
-  ['roles', 'rules'].forEach(dir => {
+  ['roles', 'rules'].forEach((dir) => {
     const srcPath = path.join(workspace, dir);
     const destPath = path.join(backupPath, dir);
     if (fs.existsSync(srcPath)) {
@@ -359,9 +385,14 @@ async function performUpgrade(workspaceVersion, packageVersion, options) {
     }
 
     // Template 파일 복사
-    const templateRoles = path.join(packageRoot, 'templates', template, 'roles');
-    const templateRules = path.join(packageRoot, 'templates', template, 'rules');
-    const templateArtifacts = path.join(packageRoot, 'templates', template, 'artifacts');
+    const templateRoles = path.join(packageRoot, 'templates', template || '', 'roles');
+    const templateRules = path.join(packageRoot, 'templates', template || '', 'rules');
+    const templateArtifacts = path.join(
+      packageRoot,
+      'templates',
+      template || '',
+      'artifacts'
+    );
 
     if (fs.existsSync(templateRoles)) {
       copyDirMerge(templateRoles, path.join(workspace, 'roles'));
@@ -373,8 +404,10 @@ async function performUpgrade(workspaceVersion, packageVersion, options) {
 
     // 템플릿 아티팩트 (사용자 데이터 아닌 것만)
     if (fs.existsSync(templateArtifacts)) {
-      const artifactFiles = fs.readdirSync(templateArtifacts).filter(f => f.endsWith('.md'));
-      artifactFiles.forEach(file => {
+      const artifactFiles = fs
+        .readdirSync(templateArtifacts)
+        .filter((f) => f.endsWith('.md'));
+      artifactFiles.forEach((file) => {
         const srcFile = path.join(templateArtifacts, file);
         const destFile = path.join(workspace, 'artifacts', file);
         // 기존 사용자 데이터가 있으면 건너뜀
@@ -385,11 +418,11 @@ async function performUpgrade(workspaceVersion, packageVersion, options) {
     }
 
     // 버전 정보 업데이트
-    const newVersionInfo = {
+    const newVersionInfo: VersionInfo = {
       packageVersion: packageVersion,
       workspaceVersion: packageVersion,
-      template: template,
-      lastUpgrade: new Date().toISOString()
+      template: template || '',
+      lastUpgrade: new Date().toISOString(),
     };
 
     writeVersion(newVersionInfo);
@@ -402,11 +435,10 @@ async function performUpgrade(workspaceVersion, packageVersion, options) {
     console.log(chalk.cyan('롤백이 필요한 경우:'));
     console.log(chalk.gray('  ada upgrade --rollback'));
     console.log('');
-
   } catch (error) {
     console.log('');
     console.log(chalk.red('❌ 업그레이드 중 오류 발생!'));
-    console.log(chalk.red(error.message));
+    console.log(chalk.red(error instanceof Error ? error.message : String(error)));
     console.log('');
     console.log(chalk.yellow('백업에서 복원하려면:'));
     console.log(chalk.gray('  ada upgrade --rollback'));

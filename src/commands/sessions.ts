@@ -2,19 +2,29 @@ import fs from 'fs-extra';
 import path from 'path';
 import chalk from 'chalk';
 import readline from 'readline';
-import { getSessionsDir, isWorkspaceSetup, getWorkspaceDir } from '../utils/files.js';
+import {
+  getSessionsDir,
+  isWorkspaceSetup,
+  getWorkspaceDir,
+} from '../utils/files.js';
 import {
   getActiveSessions,
   getPendingQuestions,
   readStatus,
   getStatusFilePath,
   cleanupZombieSessions,
-  answerQuestion
+  answerQuestion,
 } from '../utils/sessionState.js';
+import type { Question, SessionInfo, TaskProgressInfo } from '../types/index.js';
 
-export async function sessions(options = {}) {
+export interface SessionsOptions {
+  watch?: boolean;
+  clean?: boolean;
+}
+
+export async function sessions(options: SessionsOptions = {}): Promise<void> {
   if (!isWorkspaceSetup()) {
-    console.log(chalk.red('? 먼저 setup을 실행하세요.'));
+    console.log(chalk.red('❌ 먼저 setup을 실행하세요.'));
     process.exit(1);
   }
 
@@ -52,14 +62,16 @@ export async function sessions(options = {}) {
     console.log(chalk.gray('  역할        도구      시작 시간           상태'));
     console.log(chalk.gray('  ' + '─'.repeat(56)));
 
-    activeSessions.forEach(session => {
+    activeSessions.forEach((session) => {
       const role = (session.role || '-').padEnd(10);
       const tool = (session.tool || '-').padEnd(8);
       const startTime = new Date(session.startedAt).toLocaleString('ko-KR');
       const status = session.status || 'active';
       const statusIcon = status === 'active' ? '+' : '-';
 
-      console.log(`  ${role}  ${tool}  ${startTime}  ${statusIcon} ${status}`);
+      console.log(
+        `  ${role}  ${tool}  ${startTime}  ${statusIcon} ${status}`
+      );
     });
     console.log('');
   } else {
@@ -73,7 +85,7 @@ export async function sessions(options = {}) {
     console.log(chalk.yellow.bold('대기 질문'));
     console.log('');
 
-    pendingQuestions.forEach(q => {
+    pendingQuestions.forEach((q) => {
       console.log(chalk.yellow(`  [${q.id}] ${q.from} → ${q.to}`));
       console.log(chalk.white(`  질문: ${q.question}`));
       if (q.options && q.options.length > 0) {
@@ -97,17 +109,21 @@ export async function sessions(options = {}) {
 
     activeTasks.forEach(([taskId, info]) => {
       const normalizedStatus = info.status === 'IN_QA' ? 'IN_REVIEW' : info.status;
-      const statusColor = normalizedStatus === 'DONE' ? chalk.green : 
-                          normalizedStatus === 'IN_DEV' ? chalk.yellow :
-                          normalizedStatus === 'IN_REVIEW' ? chalk.blue :
-                          chalk.white;
+      const statusColor =
+        normalizedStatus === 'DONE'
+          ? chalk.green
+          : normalizedStatus === 'IN_DEV'
+            ? chalk.yellow
+            : normalizedStatus === 'IN_REVIEW'
+              ? chalk.blue
+              : chalk.white;
 
-      console.log(`  ${taskId}: [${statusColor(normalizedStatus)}]`);
-      if (info.assignee) {
-        console.log(chalk.gray(`    담당: ${info.assignee}`));
+      console.log(`  ${taskId}: [${statusColor(normalizedStatus || '')}]`);
+      if ((info as Record<string, unknown>).assignee) {
+        console.log(chalk.gray(`    담당: ${(info as Record<string, unknown>).assignee}`));
       }
-      if (info.note) {
-        console.log(chalk.gray(`    메모: ${info.note}`));
+      if ((info as Record<string, unknown>).note) {
+        console.log(chalk.gray(`    메모: ${(info as Record<string, unknown>).note}`));
       }
     });
     console.log('');
@@ -123,8 +139,9 @@ export async function sessions(options = {}) {
     return;
   }
 
-  const sessionDirs = fs.readdirSync(sessionsDir)
-    .filter(f => fs.statSync(path.join(sessionsDir, f)).isDirectory())
+  const sessionDirs = fs
+    .readdirSync(sessionsDir)
+    .filter((f) => fs.statSync(path.join(sessionsDir, f)).isDirectory())
     .sort()
     .reverse();
 
@@ -136,7 +153,9 @@ export async function sessions(options = {}) {
 
   console.log(chalk.cyan.bold('최근 세션 기록'));
   console.log('');
-  console.log(chalk.gray('  세션 ID                      역할        도구      상태'));
+  console.log(
+    chalk.gray('  세션 ID                      역할        도구      상태')
+  );
   console.log(chalk.gray('  ' + '─'.repeat(56)));
 
   for (const sessionId of sessionDirs.slice(0, 10)) {
@@ -147,15 +166,21 @@ export async function sessions(options = {}) {
         const session = JSON.parse(fs.readFileSync(sessionFile, 'utf-8'));
         const role = (session.role || '-').padEnd(10);
         const tool = (session.tool || '-').padEnd(8);
-        const status = session.status || 'unknown';
+        const sessionStatus = session.status || 'unknown';
 
-        const statusColor = status === 'completed' ? chalk.green :
-                           status === 'active' ? chalk.yellow :
-                           status === 'error' ? chalk.red :
-                           chalk.gray;
+        const statusColor =
+          sessionStatus === 'completed'
+            ? chalk.green
+            : sessionStatus === 'active'
+              ? chalk.yellow
+              : sessionStatus === 'error'
+                ? chalk.red
+                : chalk.gray;
 
-        console.log(`  ${sessionId}  ${role}  ${tool}  ${statusColor(status)}`);
-      } catch (e) {
+        console.log(
+          `  ${sessionId}  ${role}  ${tool}  ${statusColor(sessionStatus)}`
+        );
+      } catch {
         console.log(`  ${sessionId}  ${chalk.gray('(읽기 실패)')}`);
       }
     } else {
@@ -166,38 +191,47 @@ export async function sessions(options = {}) {
   console.log('');
 
   if (sessionDirs.length > 10) {
-    console.log(chalk.gray(`  ... 그 외 ${sessionDirs.length - 10}개 세션 (ada logs 명령어로 확인)`));
+    console.log(
+      chalk.gray(
+        `  ... 그 외 ${sessionDirs.length - 10}개 세션 (ada logs 명령어로 확인)`
+      )
+    );
     console.log('');
   }
 }
 
 // Watch 모드: 실시간 세션 모니터링
-async function watchSessions() {
+async function watchSessions(): Promise<void> {
   const statusFile = getStatusFilePath();
   let lastUpdate = '';
   let isWatching = true;
   let isPrompting = false;
-  const promptQueue = [];
-  const promptedQuestions = new Set();
+  const promptQueue: Question[] = [];
+  const promptedQuestions = new Set<string>();
 
-  function pauseWatch() {
+  interface KeyInfo {
+    ctrl?: boolean;
+    name?: string;
+  }
+
+  function pauseWatch(): void {
     isWatching = false;
   }
 
-  function resumeWatch() {
+  function resumeWatch(): void {
     isWatching = true;
     drawScreen();
     lastUpdate = new Date().toLocaleTimeString('ko-KR');
   }
 
-  function disableKeypressHandling() {
+  function disableKeypressHandling(): void {
     if (process.stdin.isTTY) {
       process.stdin.setRawMode(false);
     }
     process.stdin.removeListener('keypress', keyHandler);
   }
 
-  function enableKeypressHandling() {
+  function enableKeypressHandling(): void {
     if (process.stdin.isTTY) {
       readline.emitKeypressEvents(process.stdin);
       process.stdin.setRawMode(true);
@@ -205,8 +239,8 @@ async function watchSessions() {
     process.stdin.on('keypress', keyHandler);
   }
 
-  function enqueueQuestions(questions) {
-    questions.forEach(question => {
+  function enqueueQuestions(questions: Question[]): void {
+    questions.forEach((question) => {
       if (!promptedQuestions.has(question.id)) {
         promptQueue.push(question);
         promptedQuestions.add(question.id);
@@ -214,7 +248,7 @@ async function watchSessions() {
     });
   }
 
-  async function processPromptQueue() {
+  async function processPromptQueue(): Promise<void> {
     if (isPrompting || promptQueue.length === 0) {
       return;
     }
@@ -225,7 +259,9 @@ async function watchSessions() {
 
     while (promptQueue.length > 0) {
       const nextQuestion = promptQueue.shift();
-      await promptQuestion(nextQuestion);
+      if (nextQuestion) {
+        await promptQuestion(nextQuestion);
+      }
     }
 
     enableKeypressHandling();
@@ -233,9 +269,11 @@ async function watchSessions() {
     resumeWatch();
   }
 
-  async function promptQuestion(question) {
+  async function promptQuestion(question: Question): Promise<void> {
     const status = readStatus();
-    const currentQuestion = status.pendingQuestions?.find(q => q.id === question.id);
+    const currentQuestion = status.pendingQuestions?.find(
+      (q) => q.id === question.id
+    );
 
     if (!currentQuestion || currentQuestion.status !== 'waiting') {
       return;
@@ -246,7 +284,9 @@ async function watchSessions() {
     console.log(chalk.yellow.bold('질문 응답 필요'));
     console.log(chalk.yellow('━'.repeat(60)));
     console.log(chalk.white(`  ID: ${currentQuestion.id}`));
-    console.log(chalk.white(`  요청: ${currentQuestion.from} → ${currentQuestion.to}`));
+    console.log(
+      chalk.white(`  요청: ${currentQuestion.from} → ${currentQuestion.to}`)
+    );
     console.log(chalk.white(`  질문: ${currentQuestion.question}`));
 
     if (currentQuestion.options && currentQuestion.options.length > 0) {
@@ -256,16 +296,21 @@ async function watchSessions() {
       });
     }
 
-    const promptText = currentQuestion.options && currentQuestion.options.length > 0
-      ? '  답변(번호 또는 직접 입력): '
-      : '  답변: ';
+    const promptText =
+      currentQuestion.options && currentQuestion.options.length > 0
+        ? '  답변(번호 또는 직접 입력): '
+        : '  답변: ';
 
     const answerInput = await askInput(chalk.cyan(promptText));
     let answer = (answerInput || '').trim();
 
     if (currentQuestion.options && currentQuestion.options.length > 0) {
       const optionIndex = Number.parseInt(answer, 10);
-      if (!Number.isNaN(optionIndex) && optionIndex >= 1 && optionIndex <= currentQuestion.options.length) {
+      if (
+        !Number.isNaN(optionIndex) &&
+        optionIndex >= 1 &&
+        optionIndex <= currentQuestion.options.length
+      ) {
         answer = currentQuestion.options[optionIndex - 1];
       }
     }
@@ -282,14 +327,14 @@ async function watchSessions() {
     console.log('');
   }
 
-  function askInput(prompt) {
-    return new Promise(resolve => {
+  function askInput(prompt: string): Promise<string> {
+    return new Promise((resolve) => {
       const rl = readline.createInterface({
         input: process.stdin,
-        output: process.stdout
+        output: process.stdout,
       });
 
-      rl.question(prompt, answer => {
+      rl.question(prompt, (answer) => {
         rl.close();
         resolve(answer);
       });
@@ -297,56 +342,79 @@ async function watchSessions() {
   }
 
   // 화면 그리기 함수
-  function drawScreen() {
+  function drawScreen(): void {
     console.clear();
 
     const now = new Date();
     const timeString = now.toLocaleTimeString('ko-KR');
-    let pendingQuestions = [];
+    let pendingQs: Question[] = [];
 
     // 헤더
     console.log('');
     console.log(chalk.cyan('┌' + '─'.repeat(78) + '┐'));
-    console.log(chalk.cyan('│') + chalk.bold.white(' Manager Watch Mode'.padEnd(78)) + chalk.cyan('│'));
-    console.log(chalk.cyan('│') + chalk.gray(` 시간: ${timeString}`.padEnd(78)) + chalk.cyan('│'));
+    console.log(
+      chalk.cyan('│') +
+        chalk.bold.white(' Manager Watch Mode'.padEnd(78)) +
+        chalk.cyan('│')
+    );
+    console.log(
+      chalk.cyan('│') +
+        chalk.gray(` 시간: ${timeString}`.padEnd(78)) +
+        chalk.cyan('│')
+    );
     console.log(chalk.cyan('└' + '─'.repeat(78) + '┘'));
     console.log('');
 
     try {
       const status = readStatus();
-      const activeSessions = status.activeSessions || [];
-      pendingQuestions = status.pendingQuestions?.filter(q => q.status === 'waiting') || [];
+      const activeSessionsList = status.activeSessions || [];
+      pendingQs =
+        status.pendingQuestions?.filter((q) => q.status === 'waiting') || [];
       const taskProgress = status.taskProgress || {};
       const notifications = status.notifications || [];
 
       // 통계 패널
       console.log(chalk.bgBlue.white.bold(' 통계 '));
       console.log('');
-      console.log(chalk.white(`  활성 세션: ${chalk.yellow(activeSessions.length)}개`));
-      console.log(chalk.white(`  대기 질문: ${pendingQuestions.length > 0 ? chalk.red(pendingQuestions.length) : chalk.green('0')}개`));
-
-      const activeTasks = Object.keys(taskProgress).filter(
-        taskId => taskProgress[taskId].status !== 'DONE'
+      console.log(
+        chalk.white(`  활성 세션: ${chalk.yellow(activeSessionsList.length)}개`)
       );
-      console.log(chalk.white(`  진행 Task: ${chalk.cyan(activeTasks.length)}개`));
-      console.log(chalk.white(`  읽지 않은 알림: ${notifications.filter(n => !n.read).length}개`));
+      console.log(
+        chalk.white(
+          `  대기 질문: ${pendingQs.length > 0 ? chalk.red(pendingQs.length) : chalk.green('0')}개`
+        )
+      );
+
+      const activeTaskList = Object.keys(taskProgress).filter(
+        (taskId) => taskProgress[taskId].status !== 'DONE'
+      );
+      console.log(
+        chalk.white(`  진행 Task: ${chalk.cyan(activeTaskList.length)}개`)
+      );
+      console.log(
+        chalk.white(
+          `  읽지 않은 알림: ${notifications.filter((n) => !n.read).length}개`
+        )
+      );
       console.log('');
 
       // 활성 세션
-      if (activeSessions.length > 0) {
+      if (activeSessionsList.length > 0) {
         console.log(chalk.bgGreen.black.bold(' 활성 세션 '));
         console.log('');
 
-        activeSessions.forEach((session, index) => {
+        activeSessionsList.forEach((session, index) => {
           const startTime = new Date(session.startedAt);
-          const duration = Math.floor((now - startTime) / 1000 / 60); // 분
+          const duration = Math.floor((now.getTime() - startTime.getTime()) / 1000 / 60);
           const statusIcon = session.status === 'active' ? '+' : '-';
 
-          console.log(chalk.white(`  ${index + 1}. ${statusIcon} ${chalk.bold(session.role)}`));
+          console.log(
+            chalk.white(`  ${index + 1}. ${statusIcon} ${chalk.bold(session.role)}`)
+          );
           console.log(chalk.gray(`     도구: ${session.tool}`));
           console.log(chalk.gray(`     실행 시간: ${duration}분`));
 
-          if (index < activeSessions.length - 1) {
+          if (index < activeSessionsList.length - 1) {
             console.log('');
           }
         });
@@ -357,11 +425,11 @@ async function watchSessions() {
       }
 
       // 대기 질문 (강조)
-      if (pendingQuestions.length > 0) {
+      if (pendingQs.length > 0) {
         console.log(chalk.bgYellow.black.bold(' 대기 질문 '));
         console.log('');
 
-        pendingQuestions.slice(0, 3).forEach((q, index) => {
+        pendingQs.slice(0, 3).forEach((q, index) => {
           console.log(chalk.yellow(`  [${q.id}] ${q.from} → ${q.to}`));
           console.log(chalk.white(`  질문: ${q.question}`));
 
@@ -369,56 +437,64 @@ async function watchSessions() {
             console.log(chalk.gray(`  옵션: ${q.options.join(' / ')}`));
           }
 
-          const elapsed = Math.floor((now - new Date(q.createdAt)) / 1000 / 60);
+          const elapsed = Math.floor(
+            (now.getTime() - new Date(q.createdAt).getTime()) / 1000 / 60
+          );
           console.log(chalk.gray(`  대기 시간: ${elapsed}분`));
 
-          if (index < Math.min(pendingQuestions.length, 3) - 1) {
+          if (index < Math.min(pendingQs.length, 3) - 1) {
             console.log('');
           }
         });
 
-        if (pendingQuestions.length > 3) {
+        if (pendingQs.length > 3) {
           console.log('');
-          console.log(chalk.gray(`  ... 그 외 ${pendingQuestions.length - 3}개 질문`));
+          console.log(chalk.gray(`  ... 그 외 ${pendingQs.length - 3}개 질문`));
         }
         console.log('');
       }
 
       // 진행 중인 Task
-      if (activeTasks.length > 0) {
+      if (activeTaskList.length > 0) {
         console.log(chalk.bgCyan.black.bold(' 진행 중인 Task '));
         console.log('');
 
-        activeTasks.slice(0, 5).forEach((taskId, index) => {
+        activeTaskList.slice(0, 5).forEach((taskId, index) => {
           const task = taskProgress[taskId];
-          
-          const statusColors = {
-            'IN_DEV': chalk.blue,
-            'IN_REVIEW': chalk.yellow,
-            'READY': chalk.gray,
-            'IN_SPRINT': chalk.cyan
+
+          const statusColors: Record<string, typeof chalk.blue> = {
+            IN_DEV: chalk.blue,
+            IN_REVIEW: chalk.yellow,
+            READY: chalk.gray,
+            IN_SPRINT: chalk.cyan,
           };
 
-          const normalizedStatus = task.status === 'IN_QA' ? 'IN_REVIEW' : task.status;
-          const statusColor = statusColors[normalizedStatus] || chalk.white;
+          const normalizedStatus =
+            task.status === 'IN_QA' ? 'IN_REVIEW' : task.status;
+          const statusColor =
+            statusColors[normalizedStatus || ''] || chalk.white;
 
-          console.log(chalk.white(`  ${taskId}: [${statusColor(normalizedStatus)}]`));
-          if (task.assignee) {
-            console.log(chalk.gray(`     담당: ${task.assignee}`));
+          console.log(
+            chalk.white(`  ${taskId}: [${statusColor(normalizedStatus || '')}]`)
+          );
+          if ((task as Record<string, unknown>).assignee) {
+            console.log(chalk.gray(`     담당: ${(task as Record<string, unknown>).assignee}`));
           }
 
-          if (task.note) {
-            console.log(chalk.gray(`     메모: ${task.note}`));
+          if ((task as Record<string, unknown>).note) {
+            console.log(chalk.gray(`     메모: ${(task as Record<string, unknown>).note}`));
           }
 
-          if (index < Math.min(activeTasks.length, 5) - 1) {
+          if (index < Math.min(activeTaskList.length, 5) - 1) {
             console.log('');
           }
         });
 
-        if (activeTasks.length > 5) {
+        if (activeTaskList.length > 5) {
           console.log('');
-          console.log(chalk.gray(`  ... 그 외 ${activeTasks.length - 5}개 Task`));
+          console.log(
+            chalk.gray(`  ... 그 외 ${activeTaskList.length - 5}개 Task`)
+          );
         }
         console.log('');
       }
@@ -430,18 +506,20 @@ async function watchSessions() {
         console.log('');
 
         recentNotifications.forEach((notif, index) => {
-          const typeIcons = {
-            'info': 'i',
-            'warning': '!',
-            'error': 'x',
-            'question': '?',
-            'complete': 'v'
+          const typeIcons: Record<string, string> = {
+            info: 'i',
+            warning: '!',
+            error: 'x',
+            question: '?',
+            complete: 'v',
           };
 
           const icon = typeIcons[notif.type] || '?';
-          const readStatus = notif.read ? chalk.gray('[읽음]') : chalk.yellow('[안읽음]');
+          const readStat = notif.read
+            ? chalk.gray('[읽음]')
+            : chalk.yellow('[안읽음]');
 
-          console.log(chalk.white(`  ${icon} ${readStatus} ${notif.message}`));
+          console.log(chalk.white(`  ${icon} ${readStat} ${notif.message}`));
           console.log(chalk.gray(`     from: ${notif.from}`));
 
           if (index < recentNotifications.length - 1) {
@@ -450,28 +528,31 @@ async function watchSessions() {
         });
         console.log('');
       }
-
     } catch (error) {
       console.log(chalk.red('  상태 파일 읽기 오류'));
-      console.log(chalk.gray(`  ${error.message}`));
+      console.log(
+        chalk.gray(`  ${error instanceof Error ? error.message : String(error)}`)
+      );
       console.log('');
     }
 
     // 푸터
     console.log(chalk.cyan('─'.repeat(80)));
-    console.log(chalk.gray('  [q] 종료  [r] 새로고침  [c] 화면 지우기  [h] 도움말'));
+    console.log(
+      chalk.gray('  [q] 종료  [r] 새로고침  [c] 화면 지우기  [h] 도움말')
+    );
     console.log(chalk.cyan('─'.repeat(80)));
 
     if (lastUpdate) {
       console.log(chalk.gray(`  마지막 업데이트: ${lastUpdate}`));
     }
 
-    enqueueQuestions(pendingQuestions);
+    enqueueQuestions(pendingQs);
     processPromptQueue();
   }
 
   // 키보드 입력 처리
-  const keyHandler = (str, key) => {
+  const keyHandler = (str: string | undefined, key: KeyInfo): void => {
     if (key.ctrl && key.name === 'c') {
       cleanup();
     } else if (key.name === 'q') {
@@ -494,7 +575,7 @@ async function watchSessions() {
   lastUpdate = new Date().toLocaleTimeString('ko-KR');
 
   // 파일 감시
-  let watcher;
+  let watcher: fs.FSWatcher | undefined;
   if (fs.existsSync(statusFile)) {
     watcher = fs.watch(statusFile, (eventType) => {
       if (eventType === 'change' && isWatching) {
@@ -513,9 +594,9 @@ async function watchSessions() {
 
       // 30초마다 좀비 세션 정리 (2초 × 15 = 30초)
       if (tickCount % 15 === 0) {
-        const removedCount = cleanupZombieSessions(60); // 비활성/오래된 세션 제거
-        if (removedCount > 0) {
-          lastUpdate = `${new Date().toLocaleTimeString('ko-KR')} (좀비 세션 ${removedCount}개 정리됨)`;
+        const removed = cleanupZombieSessions(60);
+        if (removed > 0) {
+          lastUpdate = `${new Date().toLocaleTimeString('ko-KR')} (좀비 세션 ${removed}개 정리됨)`;
         }
       }
 
@@ -524,7 +605,7 @@ async function watchSessions() {
   }, 2000);
 
   // 정리 함수
-  function cleanup() {
+  function cleanup(): void {
     isWatching = false;
     clearInterval(intervalId);
     if (watcher) watcher.close();
@@ -538,14 +619,20 @@ async function watchSessions() {
   }
 
   // 도움말 표시
-  function showHelp() {
+  function showHelp(): void {
     console.clear();
     console.log('');
     console.log(chalk.cyan('┌' + '─'.repeat(78) + '┐'));
-    console.log(chalk.cyan('│') + chalk.bold.white(' Watch 모드 도움말'.padEnd(78)) + chalk.cyan('│'));
+    console.log(
+      chalk.cyan('│') +
+        chalk.bold.white(' Watch 모드 도움말'.padEnd(78)) +
+        chalk.cyan('│')
+    );
     console.log(chalk.cyan('└' + '─'.repeat(78) + '┘'));
     console.log('');
-    console.log(chalk.white('  Watch 모드는 실시간으로 세션 상태를 모니터링합니다.'));
+    console.log(
+      chalk.white('  Watch 모드는 실시간으로 세션 상태를 모니터링합니다.')
+    );
     console.log('');
     console.log(chalk.yellow('  키보드 단축키:'));
     console.log(chalk.white('    q       - 종료'));
@@ -555,7 +642,9 @@ async function watchSessions() {
     console.log(chalk.white('    Ctrl+C  - 강제 종료'));
     console.log('');
     console.log(chalk.yellow('  자동 갱신:'));
-    console.log(chalk.white('    - .ada-status.json 파일 변경 시 즉시 갱신'));
+    console.log(
+      chalk.white('    - .ada-status.json 파일 변경 시 즉시 갱신')
+    );
     console.log(chalk.white('    - 2초마다 시간 정보 자동 갱신'));
     console.log('');
     console.log(chalk.yellow('  Manager 역할:'));
@@ -579,7 +668,7 @@ async function watchSessions() {
 /**
  * 완료된 세션 정리
  */
-async function cleanupCompletedSessions() {
+async function cleanupCompletedSessions(): Promise<void> {
   const sessionsDir = getSessionsDir();
 
   if (!fs.existsSync(sessionsDir)) {
@@ -593,8 +682,9 @@ async function cleanupCompletedSessions() {
   console.log(chalk.cyan('━'.repeat(60)));
   console.log('');
 
-  const sessionDirs = fs.readdirSync(sessionsDir)
-    .filter(f => fs.statSync(path.join(sessionsDir, f)).isDirectory())
+  const sessionDirs = fs
+    .readdirSync(sessionsDir)
+    .filter((f) => fs.statSync(path.join(sessionsDir, f)).isDirectory())
     .sort();
 
   let completedCount = 0;
@@ -618,7 +708,11 @@ async function cleanupCompletedSessions() {
 
       // 완료 상태가 아니면 건너뜀
       if (session.status !== 'completed') {
-        console.log(chalk.yellow(`  ${sessionId}: 완료 아님 (${session.status || 'unknown'}) - 유지`));
+        console.log(
+          chalk.yellow(
+            `  ${sessionId}: 완료 아님 (${session.status || 'unknown'}) - 유지`
+          )
+        );
         skippedCount++;
         continue;
       }
@@ -627,9 +721,12 @@ async function cleanupCompletedSessions() {
       fs.removeSync(sessionPath);
       console.log(chalk.green(`  ✓ ${sessionId}: 삭제됨 (${session.status})`));
       completedCount++;
-
     } catch (error) {
-      console.log(chalk.red(`  ✗ ${sessionId}: 오류 - ${error.message}`));
+      console.log(
+        chalk.red(
+          `  ✗ ${sessionId}: 오류 - ${error instanceof Error ? error.message : String(error)}`
+        )
+      );
       errorCount++;
     }
   }

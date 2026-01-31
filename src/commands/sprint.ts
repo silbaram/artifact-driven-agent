@@ -7,11 +7,28 @@ import { syncSprint, findActiveSprint, updateSprintMeta } from '../utils/sprintU
 import { normalizeTaskStatus } from '../utils/taskParser.js';
 
 /**
- * 스프린트 관리 명령어
- * @param {string} action - create / add / close / list / sync
- * @param {Array} args - 추가 인자
+ * 회고 데이터 구조
  */
-export default async function sprint(action, ...args) {
+interface RetrospectiveData {
+  completedTasks: string[];
+  incompleteTasks: string[];
+  keep: string;
+  problem: string;
+  try: string;
+}
+
+/**
+ * Task 상태 분류 결과
+ */
+interface TaskStatusForRetrospective {
+  completedTasks: string[];
+  incompleteTasks: string[];
+}
+
+/**
+ * 스프린트 관리 명령어
+ */
+export default async function sprint(action: string, ...args: string[]): Promise<void> {
   if (!isWorkspaceSetup()) {
     console.log(chalk.red('❌ 워크스페이스가 설정되지 않았습니다.'));
     console.log(chalk.gray('   ada setup [template]을 먼저 실행하세요.'));
@@ -56,7 +73,7 @@ export default async function sprint(action, ...args) {
 /**
  * 새 스프린트 생성
  */
-async function createSprint(sprintsDir) {
+async function createSprint(sprintsDir: string): Promise<void> {
   fs.ensureDirSync(sprintsDir);
 
   // 현재 활성 스프린트 확인
@@ -134,7 +151,7 @@ async function createSprint(sprintsDir) {
 /**
  * Task 추가
  */
-async function addTasks(sprintsDir, taskIds) {
+async function addTasks(sprintsDir: string, taskIds: string[]): Promise<void> {
   if (taskIds.length === 0) {
     console.log(chalk.red('❌ Task ID를 지정하세요.'));
     console.log(chalk.gray('   예: ada sprint add task-001 task-002'));
@@ -157,7 +174,7 @@ async function addTasks(sprintsDir, taskIds) {
   }
 
   let addedCount = 0;
-  
+
   for (const taskId of taskIds) {
     const taskFile = `${taskId}.md`;
     const sourcePath = path.join(backlogPath, taskFile);
@@ -190,10 +207,8 @@ async function addTasks(sprintsDir, taskIds) {
 
 /**
  * 스프린트 종료
- * @param {string} sprintsDir - 스프린트 디렉토리
- * @param {Array} args - 옵션 (--clean, --keep-all, --auto)
  */
-async function closeSprint(sprintsDir, args = []) {
+async function closeSprint(sprintsDir: string, args: string[] = []): Promise<void> {
   const activeSprint = findActiveSprint(sprintsDir);
   if (!activeSprint) {
     console.log(chalk.red('❌ 활성 스프린트가 없습니다.'));
@@ -226,14 +241,14 @@ async function closeSprint(sprintsDir, args = []) {
   console.log(chalk.cyan('📝 스프린트 회고 작성'));
   console.log(chalk.gray('━'.repeat(50)));
 
-  let retrospectiveData;
+  let retrospectiveData: RetrospectiveData;
   if (isAuto) {
     console.log(chalk.gray('🤖 자동 모드: 기본값으로 회고 작성'));
     retrospectiveData = await getRetrospectiveDataAuto(sprintPath);
   } else {
     retrospectiveData = await promptRetrospective(sprintPath);
   }
-  
+
   createRetrospective(sprintPath, activeSprint, today, retrospectiveData);
 
   console.log('');
@@ -314,7 +329,7 @@ async function closeSprint(sprintsDir, args = []) {
 /**
  * 스프린트 목록
  */
-async function listSprints(sprintsDir) {
+async function listSprints(sprintsDir: string): Promise<void> {
   if (!fs.existsSync(sprintsDir)) {
     console.log(chalk.yellow('⚠️  스프린트가 없습니다.'));
     return;
@@ -354,7 +369,7 @@ async function listSprints(sprintsDir) {
 /**
  * 회고 데이터 자동 생성 (Auto Mode)
  */
-async function getRetrospectiveDataAuto(sprintPath) {
+async function getRetrospectiveDataAuto(sprintPath: string): Promise<RetrospectiveData> {
   const { completedTasks, incompleteTasks } = getTaskStatusForRetrospective(sprintPath);
 
   return {
@@ -369,7 +384,7 @@ async function getRetrospectiveDataAuto(sprintPath) {
 /**
  * 회고 작성 프롬프트
  */
-async function promptRetrospective(sprintPath) {
+async function promptRetrospective(sprintPath: string): Promise<RetrospectiveData> {
   const { completedTasks, incompleteTasks } = getTaskStatusForRetrospective(sprintPath);
 
   console.log('');
@@ -408,26 +423,26 @@ async function promptRetrospective(sprintPath) {
 /**
  * 회고를 위한 Task 상태 분류 헬퍼
  */
-function getTaskStatusForRetrospective(sprintPath) {
+function getTaskStatusForRetrospective(sprintPath: string): TaskStatusForRetrospective {
   // meta.md에서 Task 정보 읽기
   const metaPath = path.join(sprintPath, 'meta.md');
   const metaContent = fs.readFileSync(metaPath, 'utf-8');
-  
+
   // Task 목록/요약 파싱
   const taskLines = metaContent
     .split('\n')
     .filter(line => line.trim().toLowerCase().startsWith('| task-'));
   const knownStatuses = new Set(['BACKLOG', 'IN_DEV', 'IN_REVIEW', 'DONE', 'REJECT', 'REJECTED', 'BLOCKED']);
 
-  const completedTasks = [];
-  const incompleteTasks = [];
+  const completedTasks: string[] = [];
+  const incompleteTasks: string[] = [];
 
   taskLines.forEach(line => {
     const columns = line.split('|').map(col => col.trim()).filter(col => col.length > 0);
     if (columns.length < 2) return;
 
     const id = columns[0];
-    let status = null;
+    let status: string | null = null;
 
     const candidate1 = normalizeTaskStatus(columns[1]);
     if (knownStatuses.has(candidate1)) {
@@ -452,9 +467,14 @@ function getTaskStatusForRetrospective(sprintPath) {
 /**
  * retrospective.md 파일 생성
  */
-function createRetrospective(sprintPath, sprintName, endDate, data) {
+function createRetrospective(
+  sprintPath: string,
+  sprintName: string,
+  endDate: string,
+  data: RetrospectiveData
+): void {
   const retrospectivePath = path.join(sprintPath, 'retrospective.md');
-  
+
   // 시작일은 meta.md에서 가져오기
   const metaPath = path.join(sprintPath, 'meta.md');
   const metaContent = fs.readFileSync(metaPath, 'utf-8');

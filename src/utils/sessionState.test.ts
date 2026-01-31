@@ -13,10 +13,11 @@ import {
   writeStatus,
   getStatusFilePath
 } from './sessionState.js';
+import type { AdaStatus, Notification } from '../types/index.js';
 
 describe('알림 읽음 처리 기능', () => {
-  let originalCwd;
-  let testDir;
+  let originalCwd: string;
+  let testDir: string;
 
   beforeEach(() => {
     // 테스트용 임시 디렉토리 생성
@@ -29,7 +30,7 @@ describe('알림 읽음 처리 기능', () => {
     fs.ensureDirSync(path.join(testDir, 'ai-dev-team'));
 
     // 초기 상태 파일 생성
-    const initialStatus = {
+    const initialStatus: AdaStatus = {
       version: '1.0',
       updatedAt: new Date().toISOString(),
       currentPhase: 'planning',
@@ -82,7 +83,7 @@ describe('알림 읽음 처리 기능', () => {
     const firstReadAt = readStatus().notifications[0].readAt;
 
     // 약간의 지연
-    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    const delay = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
     return delay(10).then(() => {
       const result = markNotificationAsRead(notifId);
       assert.strictEqual(result, false);
@@ -116,7 +117,7 @@ describe('알림 읽음 처리 기능', () => {
     addNotification('info', 'planner', '알림 3', 'manager');
 
     // developer에게 온 알림만 읽음 처리
-    const markedCount = markNotificationsByFilter(n => n.to === 'developer');
+    const markedCount = markNotificationsByFilter((n: Notification) => n.to === 'developer');
 
     assert.strictEqual(markedCount, 2);
 
@@ -148,6 +149,7 @@ describe('알림 읽음 처리 기능', () => {
     // 질문 관련 알림이 읽음 처리되었는지 확인
     status = readStatus();
     const questionNotif = status.notifications.find(n => n.message.includes(questionId));
+    assert.ok(questionNotif);
     assert.strictEqual(questionNotif.read, true);
     assert.ok(questionNotif.readAt);
   });

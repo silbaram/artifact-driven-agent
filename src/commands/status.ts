@@ -7,12 +7,12 @@ import {
   isWorkspaceSetup,
   getPackageVersion,
   readVersion,
-  compareVersions
+  compareVersions,
 } from '../utils/files.js';
 
-export async function status() {
+export async function status(): Promise<void> {
   const workspace = getWorkspaceDir();
-  
+
   console.log('');
   console.log(chalk.cyan('━'.repeat(50)));
   console.log(chalk.cyan.bold('📊 현재 상태'));
@@ -36,7 +36,9 @@ export async function status() {
   // 버전 정보 확인
   const packageVersion = getPackageVersion();
   const versionInfo = readVersion();
-  const workspaceVersion = versionInfo ? (versionInfo.workspaceVersion || versionInfo.packageVersion) : null;
+  const workspaceVersion = versionInfo
+    ? versionInfo.workspaceVersion || versionInfo.packageVersion
+    : null;
 
   console.log(chalk.white.bold('버전:'));
   console.log(chalk.gray(`  패키지: ${packageVersion}`));
@@ -48,11 +50,15 @@ export async function status() {
     if (versionDiff > 0) {
       console.log('');
       console.log(chalk.yellow('⚠️  새 버전이 있습니다!'));
-      console.log(chalk.gray(`   현재: ${workspaceVersion} → 최신: ${packageVersion}`));
+      console.log(
+        chalk.gray(`   현재: ${workspaceVersion} → 최신: ${packageVersion}`)
+      );
       console.log(chalk.gray('   업그레이드하려면: ada upgrade'));
     } else if (versionDiff < 0) {
       console.log('');
-      console.log(chalk.yellow('⚠️  작업공간 버전이 패키지 버전보다 높습니다.'));
+      console.log(
+        chalk.yellow('⚠️  작업공간 버전이 패키지 버전보다 높습니다.')
+      );
       console.log(chalk.gray('   개발 버전이거나 패키지 다운그레이드됨'));
     }
   } else {
@@ -64,38 +70,43 @@ export async function status() {
   console.log('');
 
   // 템플릿 정보
-  console.log(chalk.white.bold('템플릿:'), chalk.green(template || '알 수 없음'));
+  console.log(
+    chalk.white.bold('템플릿:'),
+    chalk.green(template || '알 수 없음')
+  );
   console.log('');
 
   // 역할 목록
-  const roles = fs.readdirSync(rolesDir).filter(f => f.endsWith('.md'));
+  const roles = fs.readdirSync(rolesDir).filter((f) => f.endsWith('.md'));
   console.log(chalk.white.bold('역할 (Roles):'));
-  roles.forEach(r => {
+  roles.forEach((r) => {
     console.log(chalk.gray(`  • ${r.replace('.md', '')}`));
   });
   console.log('');
 
   // 산출물 목록
-  const artifacts = fs.readdirSync(artifactsDir).filter(f => f.endsWith('.md'));
+  const artifacts = fs
+    .readdirSync(artifactsDir)
+    .filter((f) => f.endsWith('.md'));
   console.log(chalk.white.bold('산출물 (Artifacts):'));
-  artifacts.forEach(a => {
+  artifacts.forEach((a) => {
     const filePath = path.join(artifactsDir, a);
     const content = fs.readFileSync(filePath, 'utf-8');
-    const status = getDocumentStatus(content);
-    console.log(chalk.gray(`  • ${a.replace('.md', '')} ${status}`));
+    const docStatus = getDocumentStatus(content);
+    console.log(chalk.gray(`  • ${a.replace('.md', '')} ${docStatus}`));
   });
   console.log('');
 
   // 규칙 목록
-  const rules = fs.readdirSync(rulesDir).filter(f => f.endsWith('.md'));
+  const rules = fs.readdirSync(rulesDir).filter((f) => f.endsWith('.md'));
   console.log(chalk.white.bold('규칙 (Rules):'));
-  rules.forEach(r => {
+  rules.forEach((r) => {
     console.log(chalk.gray(`  • ${r.replace('.md', '')}`));
   });
   console.log('');
 }
 
-function getDocumentStatus(content) {
+function getDocumentStatus(content: string): string {
   if (content.includes('Frozen') || content.includes('🔒')) {
     return chalk.blue('[Frozen]');
   }

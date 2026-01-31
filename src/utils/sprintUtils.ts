@@ -3,18 +3,21 @@ import path from 'path';
 import chalk from 'chalk';
 import { parseTaskMetadata } from './taskParser.js';
 import { normalizeLineEndings } from './files.js';
+import type { TaskMetadata } from '../types/index.js';
 
 /**
  * 현재 활성 스프린트 찾기
- * @param {string} sprintsDir
  */
-export function findActiveSprint(sprintsDir) {
+export function findActiveSprint(sprintsDir: string): string | null {
   try {
     if (!fs.existsSync(sprintsDir)) return null;
 
-    const sprints = fs.readdirSync(sprintsDir).filter(d => {
+    const sprints = fs.readdirSync(sprintsDir).filter((d) => {
       try {
-        return fs.statSync(path.join(sprintsDir, d)).isDirectory() && !d.startsWith('_');
+        return (
+          fs.statSync(path.join(sprintsDir, d)).isDirectory() &&
+          !d.startsWith('_')
+        );
       } catch {
         return false;
       }
@@ -44,10 +47,11 @@ export function findActiveSprint(sprintsDir) {
 
 /**
  * 스프린트 동기화 (Task 파일 상태 → meta.md)
- * @param {string} sprintsDir
- * @param {boolean} silent
  */
-export async function syncSprint(sprintsDir, silent = false) {
+export async function syncSprint(
+  sprintsDir: string,
+  silent = false
+): Promise<void> {
   try {
     const activeSprint = findActiveSprint(sprintsDir);
     if (!activeSprint) {
@@ -57,10 +61,12 @@ export async function syncSprint(sprintsDir, silent = false) {
 
     const sprintPath = path.join(sprintsDir, activeSprint);
     const tasksDir = path.join(sprintPath, 'tasks');
-    const tasks = [];
+    const tasks: TaskMetadata[] = [];
 
     if (fs.existsSync(tasksDir)) {
-      const taskFiles = fs.readdirSync(tasksDir).filter(f => f.endsWith('.md'));
+      const taskFiles = fs
+        .readdirSync(tasksDir)
+        .filter((f) => f.endsWith('.md'));
 
       for (const file of taskFiles) {
         try {
@@ -69,7 +75,8 @@ export async function syncSprint(sprintsDir, silent = false) {
           tasks.push(taskInfo);
         } catch {
           // 개별 Task 파일 읽기 실패 시 건너뛰기
-          if (!silent) console.log(chalk.yellow(`   ⚠️ Task 파일 읽기 실패: ${file}`));
+          if (!silent)
+            console.log(chalk.yellow(`   ⚠️ Task 파일 읽기 실패: ${file}`));
         }
       }
     }
@@ -84,17 +91,22 @@ export async function syncSprint(sprintsDir, silent = false) {
   } catch (err) {
     // 동기화 실패해도 호출자의 루프는 계속 진행되도록 함
     if (!silent) {
-      console.log(chalk.yellow(`   ⚠️ 스프린트 상태 동기화 실패: ${err.message}`));
+      console.log(
+        chalk.yellow(
+          `   ⚠️ 스프린트 상태 동기화 실패: ${err instanceof Error ? err.message : String(err)}`
+        )
+      );
     }
   }
 }
 
 /**
  * sprint meta.md 업데이트
- * @param {string} sprintPath 
- * @param {Array} tasks 
  */
-export function updateSprintMeta(sprintPath, tasks) {
+export function updateSprintMeta(
+  sprintPath: string,
+  tasks: TaskMetadata[]
+): void {
   const metaPath = path.join(sprintPath, 'meta.md');
   if (!fs.existsSync(metaPath)) return;
 
@@ -102,8 +114,11 @@ export function updateSprintMeta(sprintPath, tasks) {
 
   // Task 목록/요약 섹션 찾기
   // 기존 정규식이 좀 약할 수 있으므로 보완
-  const taskSectionRegex = /## Task (?:목록|요약)\s*\n[\s\S]*?\n\n(?=##|$)|## Task (?:목록|요약)\s*\n[\s\S]*?$/;
-  const taskSectionTitle = metaContent.includes('## Task 요약') ? '## Task 요약' : '## Task 목록';
+  const taskSectionRegex =
+    /## Task (?:목록|요약)\s*\n[\s\S]*?\n\n(?=##|$)|## Task (?:목록|요약)\s*\n[\s\S]*?$/;
+  const taskSectionTitle = metaContent.includes('## Task 요약')
+    ? '## Task 요약'
+    : '## Task 목록';
 
   // 새로운 Task 목록 생성
   let taskListContent = `${taskSectionTitle}\n\n`;

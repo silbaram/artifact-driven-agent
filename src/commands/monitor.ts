@@ -5,6 +5,7 @@ import { gatherProjectState, renderDashboard } from '../ui/dashboard.js';
 import { KeyHandler, waitForKey, isTTY } from '../ui/keyHandler.js';
 import { executeQuickAction } from '../ui/quickActions.js';
 import { isWorkspaceSetup, getWorkspaceDir } from '../utils/files.js';
+import type { ProjectState } from '../types/index.js';
 
 /**
  * 대시보드 자동 갱신 주기 (밀리초)
@@ -20,7 +21,7 @@ const DEBOUNCE_TIME = 500;
  * [CLI] 모니터 명령어 핸들러
  * 실시간 대시보드 및 빠른 명령어 제공
  */
-export async function monitor() {
+export async function monitor(): Promise<void> {
   // TTY 확인
   if (!isTTY()) {
     console.log(chalk.yellow('UI 모드는 터미널에서만 사용할 수 있습니다.'));
@@ -36,17 +37,17 @@ export async function monitor() {
   }
 
   // 상태 변수
-  let currentState = null;
+  let currentState: ProjectState | null = null;
   let statusMessage = '시작 중...';
   let isRunningAction = false;
-  let refreshTimer = null;
-  let fileWatcher = null;
-  let debounceTimer = null;
+  let refreshTimer: NodeJS.Timeout | null = null;
+  let fileWatcher: fs.FSWatcher | null = null;
+  let debounceTimer: NodeJS.Timeout | null = null;
   const canAutoRefresh = process.stdout.isTTY;
 
   // 키 핸들러 초기화
   const keyHandler = new KeyHandler({
-    onKey: async (key) => {
+    onKey: async (key: string) => {
       if (isRunningAction) return;
 
       isRunningAction = true;
@@ -60,6 +61,10 @@ export async function monitor() {
 
       try {
         statusMessage = '실행 중...';
+        if (!currentState) {
+          statusMessage = '오류: 상태를 불러올 수 없습니다';
+          return;
+        }
         const result = await executeQuickAction(key, currentState);
 
         if (result.error) {
@@ -74,7 +79,8 @@ export async function monitor() {
           await waitForKey();
         }
       } catch (error) {
-        statusMessage = `오류: ${error.message}`;
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        statusMessage = `오류: ${errorMessage}`;
       } finally {
         isRunningAction = false;
         keyHandler.resume();
@@ -101,19 +107,20 @@ export async function monitor() {
   /**
    * 화면 새로고침
    */
-  function refresh() {
+  function refresh(): void {
     try {
       currentState = gatherProjectState();
       renderDashboard(currentState, statusMessage);
     } catch (error) {
-      console.error(chalk.red(`화면 갱신 오류: ${error.message}`));
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red(`화면 갱신 오류: ${errorMessage}`));
     }
   }
 
   /**
    * 자동 갱신 시작
    */
-  function startAutoRefresh() {
+  function startAutoRefresh(): void {
     if (!canAutoRefresh) {
       return;
     }
@@ -132,7 +139,7 @@ export async function monitor() {
   /**
    * 파일 감시 시작 (스프린트/Task 변경 감지)
    */
-  function startFileWatcher() {
+  function startFileWatcher(): void {
     if (!canAutoRefresh) {
       return;
     }
@@ -181,7 +188,7 @@ export async function monitor() {
   /**
    * 정리
    */
-  function cleanup() {
+  function cleanup(): void {
     if (refreshTimer) {
       clearInterval(refreshTimer);
     }

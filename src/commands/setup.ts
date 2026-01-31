@@ -9,45 +9,48 @@ import {
   getAvailableTemplates,
   copyDirMerge,
   getPackageVersion,
-  writeVersion
+  writeVersion,
 } from '../utils/files.js';
+import type { VersionInfo } from '../types/index.js';
 
-export async function setup(template) {
+export async function setup(template?: string): Promise<void> {
   const templates = getAvailableTemplates();
-  
+
   if (templates.length === 0) {
     console.log(chalk.red('❌ 사용 가능한 템플릿이 없습니다.'));
     process.exit(1);
   }
 
+  let selectedTemplate = template;
+
   // 템플릿 선택
-  if (!template) {
+  if (!selectedTemplate) {
     const answer = await inquirer.prompt([
       {
         type: 'list',
         name: 'template',
         message: '프로젝트 템플릿을 선택하세요:',
-        choices: templates.map(t => ({
+        choices: templates.map((t) => ({
           name: getTemplateDescription(t),
-          value: t
-        }))
-      }
+          value: t,
+        })),
+      },
     ]);
-    template = answer.template;
+    selectedTemplate = answer.template;
   }
 
   // 별칭 처리
-  const aliases = {
-    'web': 'web-dev',
-    'lib': 'library'
+  const aliases: Record<string, string> = {
+    web: 'web-dev',
+    lib: 'library',
   };
-  if (aliases[template]) {
-    template = aliases[template];
+  if (selectedTemplate && aliases[selectedTemplate]) {
+    selectedTemplate = aliases[selectedTemplate];
   }
 
   // 템플릿 유효성 검사
-  if (!templates.includes(template)) {
-    console.log(chalk.red(`❌ 알 수 없는 템플릿: ${template}`));
+  if (!selectedTemplate || !templates.includes(selectedTemplate)) {
+    console.log(chalk.red(`❌ 알 수 없는 템플릿: ${selectedTemplate}`));
     console.log(chalk.gray(`사용 가능: ${templates.join(', ')}`));
     console.log(chalk.gray(`별칭: web → web-dev, lib → library`));
     process.exit(1);
@@ -56,11 +59,11 @@ export async function setup(template) {
   const packageRoot = getPackageRoot();
   const workspace = getWorkspaceDir();
   const coreDir = path.join(packageRoot, 'core');
-  const templateDir = path.join(packageRoot, 'templates', template);
+  const templateDir = path.join(packageRoot, 'templates', selectedTemplate);
 
   console.log('');
   console.log(chalk.cyan('━'.repeat(50)));
-  console.log(chalk.cyan.bold(`📦 ${template} 템플릿으로 세팅 중...`));
+  console.log(chalk.cyan.bold(`📦 ${selectedTemplate} 템플릿으로 세팅 중...`));
   console.log(chalk.cyan('━'.repeat(50)));
   console.log('');
 
@@ -77,43 +80,81 @@ export async function setup(template) {
   // Core 복사
   console.log(chalk.gray('📁 Core 파일 복사 중...'));
   copyDirMerge(path.join(coreDir, 'roles'), path.join(workspace, 'roles'));
-  copyDirMerge(path.join(coreDir, 'artifacts'), path.join(workspace, 'artifacts'));
+  copyDirMerge(
+    path.join(coreDir, 'artifacts'),
+    path.join(workspace, 'artifacts')
+  );
   copyDirMerge(path.join(coreDir, 'rules'), path.join(workspace, 'rules'));
 
   // Template 복사 (머지)
-  console.log(chalk.gray(`📁 ${template} 템플릿 복사 중...`));
+  console.log(chalk.gray(`📁 ${selectedTemplate} 템플릿 복사 중...`));
   copyDirMerge(path.join(templateDir, 'roles'), path.join(workspace, 'roles'));
-  copyDirMerge(path.join(templateDir, 'artifacts'), path.join(workspace, 'artifacts'));
+  copyDirMerge(
+    path.join(templateDir, 'artifacts'),
+    path.join(workspace, 'artifacts')
+  );
   copyDirMerge(path.join(templateDir, 'rules'), path.join(workspace, 'rules'));
 
   // Feature 템플릿 복사
-  const featureTemplateDir = path.join(packageRoot, 'ai-dev-team', 'artifacts', 'features', '_template');
+  const featureTemplateDir = path.join(
+    packageRoot,
+    'ai-dev-team',
+    'artifacts',
+    'features',
+    '_template'
+  );
   if (fs.existsSync(featureTemplateDir)) {
-    copyDirMerge(featureTemplateDir, path.join(workspace, 'artifacts', 'features', '_template'));
+    copyDirMerge(
+      featureTemplateDir,
+      path.join(workspace, 'artifacts', 'features', '_template')
+    );
   }
 
   // RFC 템플릿 복사
-  const rfcTemplateFile = path.join(packageRoot, 'ai-dev-team', 'artifacts', 'rfc', 'RFC-0000-template.md');
+  const rfcTemplateFile = path.join(
+    packageRoot,
+    'ai-dev-team',
+    'artifacts',
+    'rfc',
+    'RFC-0000-template.md'
+  );
   if (fs.existsSync(rfcTemplateFile)) {
-    fs.copyFileSync(rfcTemplateFile, path.join(workspace, 'artifacts', 'rfc', 'RFC-0000-template.md'));
+    fs.copyFileSync(
+      rfcTemplateFile,
+      path.join(workspace, 'artifacts', 'rfc', 'RFC-0000-template.md')
+    );
   }
 
   // Improvement Reports 템플릿 복사
-  const improvementTemplateFile = path.join(packageRoot, 'ai-dev-team', 'artifacts', 'improvement-reports', 'IMP-0000-template.md');
+  const improvementTemplateFile = path.join(
+    packageRoot,
+    'ai-dev-team',
+    'artifacts',
+    'improvement-reports',
+    'IMP-0000-template.md'
+  );
   if (fs.existsSync(improvementTemplateFile)) {
-    fs.copyFileSync(improvementTemplateFile, path.join(workspace, 'artifacts', 'improvement-reports', 'IMP-0000-template.md'));
+    fs.copyFileSync(
+      improvementTemplateFile,
+      path.join(
+        workspace,
+        'artifacts',
+        'improvement-reports',
+        'IMP-0000-template.md'
+      )
+    );
   }
 
   // 현재 템플릿 저장
-  fs.writeFileSync(getCurrentTemplateFile(), template);
+  fs.writeFileSync(getCurrentTemplateFile(), selectedTemplate);
 
   // 버전 정보 저장
   const packageVersion = getPackageVersion();
-  const versionInfo = {
+  const versionInfo: VersionInfo = {
     packageVersion: packageVersion,
     workspaceVersion: packageVersion,
-    template: template,
-    lastUpgrade: new Date().toISOString()
+    template: selectedTemplate,
+    lastUpgrade: new Date().toISOString(),
   };
   writeVersion(versionInfo);
 
@@ -121,11 +162,17 @@ export async function setup(template) {
   console.log('');
   console.log(chalk.green('✅ 세팅 완료!'));
   console.log('');
-  
+
   // 세팅된 파일 목록
-  const roles = fs.readdirSync(path.join(workspace, 'roles')).filter(f => f.endsWith('.md'));
-  const artifacts = fs.readdirSync(path.join(workspace, 'artifacts')).filter(f => f.endsWith('.md'));
-  const rules = fs.readdirSync(path.join(workspace, 'rules')).filter(f => f.endsWith('.md'));
+  const roles = fs
+    .readdirSync(path.join(workspace, 'roles'))
+    .filter((f) => f.endsWith('.md'));
+  const artifacts = fs
+    .readdirSync(path.join(workspace, 'artifacts'))
+    .filter((f) => f.endsWith('.md'));
+  const rules = fs
+    .readdirSync(path.join(workspace, 'rules'))
+    .filter((f) => f.endsWith('.md'));
 
   console.log(chalk.white.bold('📂 ai-dev-team/'));
   console.log(chalk.gray(`   roles/     ${roles.length}개 역할`));
@@ -138,12 +185,12 @@ export async function setup(template) {
   console.log('');
 }
 
-function getTemplateDescription(template) {
-  const descriptions = {
+function getTemplateDescription(template: string): string {
+  const descriptions: Record<string, string> = {
     'web-dev': 'web-dev    - 웹 서비스 개발 (Backend + Frontend)',
-    'library': 'library    - 라이브러리/SDK 개발',
-    'game': 'game       - 게임 개발',
-    'cli': 'cli        - CLI 도구 개발'
+    library: 'library    - 라이브러리/SDK 개발',
+    game: 'game       - 게임 개발',
+    cli: 'cli        - CLI 도구 개발',
   };
   return descriptions[template] || template;
 }

@@ -9,10 +9,11 @@ import {
   getStatusFilePath
 } from './sessionState.js';
 import { getSessionsDir } from './files.js';
+import type { AdaStatus, SessionFile } from '../types/index.js';
 
 describe('좀비 세션 정리 - 프로세스 확인', () => {
-  let originalCwd;
-  let testDir;
+  let originalCwd: string;
+  let testDir: string;
 
   beforeEach(() => {
     originalCwd = process.cwd();
@@ -22,7 +23,7 @@ describe('좀비 세션 정리 - 프로세스 확인', () => {
 
     fs.ensureDirSync(path.join(testDir, 'ai-dev-team'));
 
-    const initialStatus = {
+    const initialStatus: AdaStatus = {
       version: '1.0',
       updatedAt: new Date().toISOString(),
       currentPhase: 'planning',
@@ -93,7 +94,7 @@ describe('좀비 세션 정리 - 프로세스 확인', () => {
     const updated = readStatus();
     assert.strictEqual(updated.activeSessions.length, 0);
 
-    const updatedSession = JSON.parse(fs.readFileSync(path.join(sessionDir, 'session.json'), 'utf-8'));
+    const updatedSession: SessionFile = JSON.parse(fs.readFileSync(path.join(sessionDir, 'session.json'), 'utf-8'));
     assert.strictEqual(updatedSession.status, 'error');
     assert.ok(updatedSession.ended_at);
     assert.ok(updatedSession.error);

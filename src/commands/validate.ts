@@ -3,9 +3,17 @@ import path from 'path';
 import chalk from 'chalk';
 import { getWorkspaceDir, isWorkspaceSetup } from '../utils/files.js';
 
-export async function validate(doc) {
+export interface ValidationResult {
+  pass: number;
+  fail: number;
+  warn: number;
+}
+
+type ValidatorFunction = (artifactsDir: string) => ValidationResult;
+
+export async function validate(doc?: string): Promise<void> {
   if (!isWorkspaceSetup()) {
-    console.log(chalk.red('? 먼저 setup을 실행하세요.'));
+    console.log(chalk.red('❌ 먼저 setup을 실행하세요.'));
     process.exit(1);
   }
 
@@ -18,11 +26,11 @@ export async function validate(doc) {
   let totalFail = 0;
   let totalWarn = 0;
 
-  const validators = {
+  const validators: Record<string, ValidatorFunction> = {
     plan: validatePlan,
     project: validateProject,
     backlog: validateBacklog,
-    sprint: validateSprint
+    sprint: validateSprint,
   };
 
   if (doc && validators[doc]) {
@@ -52,9 +60,11 @@ export async function validate(doc) {
   }
 }
 
-function validatePlan(artifactsDir) {
+function validatePlan(artifactsDir: string): ValidationResult {
   const filePath = path.join(artifactsDir, 'plan.md');
-  let pass = 0, fail = 0, warn = 0;
+  let pass = 0,
+    fail = 0,
+    warn = 0;
 
   printSection('plan.md');
 
@@ -91,9 +101,11 @@ function validatePlan(artifactsDir) {
   return { pass, fail, warn };
 }
 
-function validateProject(artifactsDir) {
+function validateProject(artifactsDir: string): ValidationResult {
   const filePath = path.join(artifactsDir, 'project.md');
-  let pass = 0, fail = 0, warn = 0;
+  let pass = 0,
+    fail = 0,
+    warn = 0;
 
   printSection('project.md');
 
@@ -117,7 +129,7 @@ function validateProject(artifactsDir) {
   }
 
   // Frozen 상태 검사
-  if (content.includes('Frozen') || content.includes('??')) {
+  if (content.includes('Frozen') || content.includes('🔒')) {
     logPass('Frozen 상태 표시됨');
     pass++;
   } else {
@@ -138,9 +150,11 @@ function validateProject(artifactsDir) {
   return { pass, fail, warn };
 }
 
-export function validateBacklog(artifactsDir) {
+export function validateBacklog(artifactsDir: string): ValidationResult {
   const backlogDir = path.join(artifactsDir, 'backlog');
-  let pass = 0, fail = 0, warn = 0;
+  let pass = 0,
+    fail = 0,
+    warn = 0;
 
   printSection('backlog/');
 
@@ -150,7 +164,9 @@ export function validateBacklog(artifactsDir) {
     return { pass: 0, fail: 0, warn: 1 };
   }
 
-  const taskFiles = fs.readdirSync(backlogDir).filter(file => /^task-\d+\.md$/i.test(file));
+  const taskFiles = fs
+    .readdirSync(backlogDir)
+    .filter((file) => /^task-\d+\.md$/i.test(file));
 
   if (taskFiles.length > 0) {
     logPass(`Task 개수: ${taskFiles.length}개`);
@@ -162,7 +178,7 @@ export function validateBacklog(artifactsDir) {
     return { pass, fail, warn };
   }
 
-  const missingAcceptance = taskFiles.filter(file => {
+  const missingAcceptance = taskFiles.filter((file) => {
     const content = fs.readFileSync(path.join(backlogDir, file), 'utf-8');
     return !hasAcceptanceCriteria(content);
   });
@@ -171,7 +187,9 @@ export function validateBacklog(artifactsDir) {
     logPass(`수용 조건 존재 (${taskFiles.length}/${taskFiles.length})`);
     pass++;
   } else {
-    logWarn(`수용 조건 미확인 (${taskFiles.length - missingAcceptance.length}/${taskFiles.length})`);
+    logWarn(
+      `수용 조건 미확인 (${taskFiles.length - missingAcceptance.length}/${taskFiles.length})`
+    );
     warn++;
   }
 
@@ -179,9 +197,11 @@ export function validateBacklog(artifactsDir) {
   return { pass, fail, warn };
 }
 
-export function validateSprint(artifactsDir) {
+export function validateSprint(artifactsDir: string): ValidationResult {
   const sprintsDir = path.join(artifactsDir, 'sprints');
-  let pass = 0, fail = 0, warn = 0;
+  let pass = 0,
+    fail = 0,
+    warn = 0;
 
   printSection('sprints/');
 
@@ -191,9 +211,10 @@ export function validateSprint(artifactsDir) {
     return { pass: 0, fail: 0, warn: 1 };
   }
 
-  const sprintDirs = fs.readdirSync(sprintsDir, { withFileTypes: true })
-    .filter(dirent => dirent.isDirectory() && /^sprint-\d+$/.test(dirent.name))
-    .map(dirent => dirent.name);
+  const sprintDirs = fs
+    .readdirSync(sprintsDir, { withFileTypes: true })
+    .filter((dirent) => dirent.isDirectory() && /^sprint-\d+$/.test(dirent.name))
+    .map((dirent) => dirent.name);
 
   if (sprintDirs.length === 0) {
     logWarn('스프린트 디렉토리 없음 (스프린트 시작 전)');
@@ -219,7 +240,7 @@ export function validateSprint(artifactsDir) {
   logInfo(`최신 스프린트: ${latestSprint}`);
 
   const requiredFields = ['스프린트 번호', '상태', '시작일', '종료 예정', '목표'];
-  requiredFields.forEach(field => {
+  requiredFields.forEach((field) => {
     if (content.includes(field)) {
       logPass(`필드 존재: ${field}`);
       pass++;
@@ -229,7 +250,8 @@ export function validateSprint(artifactsDir) {
     }
   });
 
-  const hasTaskSection = content.includes('Task 요약') || content.includes('Task 목록');
+  const hasTaskSection =
+    content.includes('Task 요약') || content.includes('Task 목록');
   if (hasTaskSection) {
     logPass('Task 섹션 존재');
     pass++;
@@ -240,7 +262,9 @@ export function validateSprint(artifactsDir) {
 
   const tasksDir = path.join(sprintsDir, latestSprint, 'tasks');
   if (fs.existsSync(tasksDir) && fs.statSync(tasksDir).isDirectory()) {
-    const taskFiles = fs.readdirSync(tasksDir).filter(file => /^task-\d+\.md$/i.test(file));
+    const taskFiles = fs
+      .readdirSync(tasksDir)
+      .filter((file) => /^task-\d+\.md$/i.test(file));
     if (taskFiles.length > 0) {
       logPass(`Task 개수: ${taskFiles.length}개`);
       pass++;
@@ -257,11 +281,15 @@ export function validateSprint(artifactsDir) {
   return { pass, fail, warn };
 }
 
-function hasAcceptanceCriteria(content) {
-  return content.includes('수용 조건') || content.includes('Acceptance Criteria') || content.includes('AC-');
+function hasAcceptanceCriteria(content: string): boolean {
+  return (
+    content.includes('수용 조건') ||
+    content.includes('Acceptance Criteria') ||
+    content.includes('AC-')
+  );
 }
 
-function printSection(title) {
+function printSection(title: string): void {
   const width = 60;
   const line = '─'.repeat(width);
   const paddedTitle = ` ${title}`.padEnd(width, ' ');
@@ -272,18 +300,18 @@ function printSection(title) {
   console.log('');
 }
 
-function logPass(message) {
+function logPass(message: string): void {
   console.log(chalk.green(`  [PASS] ${message}`));
 }
 
-function logWarn(message) {
+function logWarn(message: string): void {
   console.log(chalk.yellow(`  [WARN] ${message}`));
 }
 
-function logFail(message) {
+function logFail(message: string): void {
   console.log(chalk.red(`  [FAIL] ${message}`));
 }
 
-function logInfo(message) {
+function logInfo(message: string): void {
   console.log(chalk.cyan(`  [INFO] ${message}`));
 }

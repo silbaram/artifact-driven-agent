@@ -1,30 +1,51 @@
 import readline from 'readline';
-import { QUICK_ACTIONS, executeQuickAction } from './quickActions.js';
+import { QUICK_ACTIONS } from './quickActions.js';
+
+/**
+ * 키 입력 핸들러 옵션
+ */
+export interface KeyHandlerOptions {
+  onKey?: (key: string) => void;
+  onRefresh?: () => void;
+  onQuit?: () => void;
+}
+
+/**
+ * readline Key 타입
+ */
+interface KeyInfo {
+  ctrl?: boolean;
+  name?: string;
+}
 
 /**
  * 키 입력 핸들러 클래스
  * 터미널에서 단일 키 입력을 감지하여 콜백 실행
  */
 export class KeyHandler {
-  constructor(options = {}) {
+  private onKey: (key: string) => void;
+  private onRefresh: () => void;
+  private onQuit: () => void;
+  private paused: boolean;
+
+  constructor(options: KeyHandlerOptions = {}) {
     this.onKey = options.onKey || (() => {});
     this.onRefresh = options.onRefresh || (() => {});
     this.onQuit = options.onQuit || (() => {});
     this.paused = false;
-    this.rl = null;
   }
 
   /**
    * 키 입력 감지 시작
    */
-  start() {
+  start(): void {
     // Raw mode 설정 (한 글자씩 즉시 입력)
     if (process.stdin.isTTY) {
       readline.emitKeypressEvents(process.stdin);
       process.stdin.setRawMode(true);
       process.stdin.resume();
 
-      process.stdin.on('keypress', (str, key) => {
+      process.stdin.on('keypress', (str: string | undefined, key: KeyInfo) => {
         this.handleKeypress(str, key);
       });
     }
@@ -33,7 +54,7 @@ export class KeyHandler {
   /**
    * 키 입력 감지 중지
    */
-  stop() {
+  stop(): void {
     if (process.stdin.isTTY) {
       process.stdin.setRawMode(false);
       process.stdin.pause();
@@ -43,21 +64,21 @@ export class KeyHandler {
   /**
    * 일시 정지 (에이전트 실행 중)
    */
-  pause() {
+  pause(): void {
     this.paused = true;
   }
 
   /**
    * 재개
    */
-  resume() {
+  resume(): void {
     this.paused = false;
   }
 
   /**
    * 키 입력 처리
    */
-  handleKeypress(str, key) {
+  private handleKeypress(str: string | undefined, key: KeyInfo): void {
     // Ctrl+C 처리
     if (key && key.ctrl && key.name === 'c') {
       this.onQuit();
@@ -98,9 +119,8 @@ export class KeyHandler {
 
 /**
  * 단일 키 입력 대기 (Promise 기반)
- * @returns {Promise<string>} 입력된 키
  */
-export function waitForKey() {
+export function waitForKey(): Promise<string> {
   return new Promise((resolve) => {
     if (!process.stdin.isTTY) {
       // TTY가 아닌 경우 즉시 반환
@@ -109,14 +129,15 @@ export function waitForKey() {
     }
 
     const wasRaw = process.stdin.isRaw;
-    const wasPaused = typeof process.stdin.isPaused === 'function'
-      ? process.stdin.isPaused()
-      : false;
+    const wasPaused =
+      typeof process.stdin.isPaused === 'function'
+        ? process.stdin.isPaused()
+        : false;
     readline.emitKeypressEvents(process.stdin);
     process.stdin.setRawMode(true);
     process.stdin.resume();
 
-    const handler = (str, key) => {
+    const handler = (str: string | undefined, key: KeyInfo): void => {
       process.stdin.removeListener('keypress', handler);
       if (!wasRaw) {
         process.stdin.setRawMode(false);
@@ -142,6 +163,6 @@ export function waitForKey() {
 /**
  * stdin이 TTY인지 확인
  */
-export function isTTY() {
-  return process.stdin.isTTY;
+export function isTTY(): boolean {
+  return !!process.stdin.isTTY;
 }
