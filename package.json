@@ -21,7 +21,9 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test dist/src/**/*.test.js",
     "pretest": "npm run build",
-    "lint": "echo 'No linter configured'"
+    "lint": "echo 'No linter configured'",
+    "prepublishOnly": "npm run build && npm test",
+    "postversion": "git push && git push --tags"
   },
   "keywords": [
     "ai",

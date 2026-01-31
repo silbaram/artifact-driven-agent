@@ -44,13 +44,14 @@ npm install -g @silbaram/artifact-driven-agent
 npx @silbaram/artifact-driven-agent setup web
 ```
 
-### 저장소 클론
+### 저장소 클론 (개발자용)
 
 ```bash
 git clone https://github.com/silbaram/artifact-driven-agent.git
 cd artifact-driven-agent
-npm install
-npm link  # 전역 명령어 등록
+npm install        # 의존성 설치
+npm run build      # TypeScript 컴파일
+npm link           # 전역 명령어 등록
 ```
 
 ### 설치 확인
@@ -194,18 +195,30 @@ sprints/sprint-N/
 
 ```
 artifact-driven-agent/
-├── bin/cli.js              # CLI 진입점
+├── bin/
+│   └── cli.ts              # CLI 진입점 (TypeScript)
 ├── src/
-│   ├── commands/           # 명령어 구현
-│   │   ├── setup.js
-│   │   ├── run.js
-│   │   ├── sprint.js      # 스프린트 관리
-│   │   ├── sessions.js    # 세션 모니터링
-│   │   └── config.js      # 설정 관리
-│   └── utils/
-│       ├── files.js
-│       ├── config.js      # 설정 유틸리티
-│       └── sessionState.js
+│   ├── commands/           # 명령어 구현 (TypeScript)
+│   │   ├── setup.ts
+│   │   ├── run.ts
+│   │   ├── sprint.ts       # 스프린트 관리
+│   │   ├── sessions.ts     # 세션 모니터링
+│   │   └── config.ts       # 설정 관리
+│   ├── utils/
+│   │   ├── files.ts
+│   │   ├── config.ts       # 설정 유틸리티
+│   │   └── sessionState.ts
+│   ├── ui/
+│   │   ├── dashboard.ts    # 대시보드
+│   │   └── keyHandler.ts
+│   └── types/              # TypeScript 타입 정의
+│       ├── common.ts
+│       ├── session.ts
+│       ├── config.ts
+│       ├── task.ts
+│       └── index.ts
+├── dist/                   # 빌드 출력 (.js 파일)
+├── tsconfig.json           # TypeScript 설정
 ├── core/                   # 범용 핵심
 │   ├── roles/              # 6개 역할
 │   ├── artifacts/          # 산출물 템플릿
@@ -666,14 +679,35 @@ ada config get roles.manager
 ```bash
 git clone https://github.com/silbaram/artifact-driven-agent.git
 cd artifact-driven-agent
-npm install
-npm link  # 전역 ada 명령어 등록
+npm install        # 의존성 설치
+npm run build      # TypeScript 컴파일
+npm link           # 전역 ada 명령어 등록
 ```
 
-### 테스트
+### 개발 스크립트
 
 ```bash
-npm test   # Node.js 내장 test runner 사용
+npm run build      # TypeScript 컴파일 (dist/ 생성)
+npm run dev        # TypeScript watch 모드 (개발 중)
+npm run typecheck  # 타입 체크만 실행
+npm test           # 테스트 실행 (Node.js 내장 test runner)
+```
+
+### 프로젝트 구조 (TypeScript)
+
+```
+artifact-driven-agent/
+├── bin/
+│   └── cli.ts              # CLI 진입점 (TypeScript)
+├── src/
+│   ├── commands/           # 명령어 구현 (.ts)
+│   ├── utils/              # 유틸리티 (.ts)
+│   ├── ui/                 # UI 컴포넌트 (.ts)
+│   └── types/              # TypeScript 타입 정의
+├── dist/                   # 빌드 출력 (npm run build)
+├── tsconfig.json           # TypeScript 설정
+├── core/                   # 프레임워크 핵심
+└── templates/              # 프로젝트 템플릿
 ```
 
 ---

@@ -1,0 +1,29 @@
+# Source files (only dist/ is needed)
+src/
+bin/
+tsconfig.json
+
+# Development files
+*.test.ts
+*.test.js
+.test-workspace/
+
+# IDE
+.vscode/
+.idea/
+.claude/
+
+# Git
+.git/
+.gitignore
+
+# CI/CD
+.github/
+
+# Documentation (선택적)
+# docs/
+
+# Misc
+*.log
+node_modules/
+.DS_Store
