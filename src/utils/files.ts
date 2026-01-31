@@ -20,7 +20,7 @@ export function normalizeLineEndings(content: string): string {
  * 패키지 루트 디렉토리 반환
  */
 export function getPackageRoot(): string {
-  return path.resolve(__dirname, '../..');
+  return path.resolve(__dirname, '../../..');
 }
 
 /**
