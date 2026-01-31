@@ -71,6 +71,7 @@ export async function setup(template?: string): Promise<void> {
   fs.ensureDirSync(path.join(workspace, 'roles'));
   fs.ensureDirSync(path.join(workspace, 'artifacts'));
   fs.ensureDirSync(path.join(workspace, 'rules'));
+  fs.ensureDirSync(path.join(workspace, 'skills'));
   fs.ensureDirSync(path.join(workspace, 'artifacts', 'backlog'));
   fs.ensureDirSync(path.join(workspace, 'artifacts', 'sprints'));
   fs.ensureDirSync(path.join(workspace, 'artifacts', 'features', '_template'));
@@ -85,6 +86,7 @@ export async function setup(template?: string): Promise<void> {
     path.join(workspace, 'artifacts')
   );
   copyDirMerge(path.join(coreDir, 'rules'), path.join(workspace, 'rules'));
+  copyDirMerge(path.join(coreDir, 'skills'), path.join(workspace, 'skills'));
 
   // Template 복사 (머지)
   console.log(chalk.gray(`📁 ${selectedTemplate} 템플릿 복사 중...`));

@@ -33,6 +33,7 @@ export type {
 export type {
   AdaConfig,
   DefaultsConfig,
+  RoleConfig,
   RoleToolConfig,
   VersionInfo,
 } from './config.js';

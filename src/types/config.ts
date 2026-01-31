@@ -1,18 +1,26 @@
 import type { Tool } from './common.js';
 
 /**
- * 역할별 도구 설정
+ * 역할 설정 (도구 + 스킬)
+ */
+export interface RoleConfig {
+  tool: Tool | string;
+  skills?: string[];
+}
+
+/**
+ * 역할별 도구 설정 (문자열 또는 객체)
  */
 export interface RoleToolConfig {
-  manager?: Tool | string;
-  planner?: Tool | string;
-  architect?: Tool | string;
-  developer?: Tool | string;
-  reviewer?: Tool | string;
-  improver?: Tool | string;
-  documenter?: Tool | string;
-  analyzer?: Tool | string;
-  [role: string]: Tool | string | undefined;
+  manager?: Tool | string | RoleConfig;
+  planner?: Tool | string | RoleConfig;
+  architect?: Tool | string | RoleConfig;
+  developer?: Tool | string | RoleConfig;
+  reviewer?: Tool | string | RoleConfig;
+  improver?: Tool | string | RoleConfig;
+  documenter?: Tool | string | RoleConfig;
+  analyzer?: Tool | string | RoleConfig;
+  [role: string]: Tool | string | RoleConfig | undefined;
 }
 
 /**

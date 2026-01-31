@@ -20,7 +20,7 @@ import {
   getActiveSessions,
   getPendingQuestions
 } from '../utils/sessionState.js';
-import { getToolForRole } from '../utils/config.js';
+import { getToolForRole, getSkillsForRole } from '../utils/config.js';
 import type { Tool, SessionInfo } from '../types/index.js';
 
 /**
@@ -370,6 +370,7 @@ function printSessionBanner(role: string, tool: string, sessionId: string, templ
 function buildSystemPrompt(workspace: string, role: string, roleContent: string): string {
   const artifactsDir = path.join(workspace, 'artifacts');
   const rulesDir = path.join(workspace, 'rules');
+  const skillsDir = path.join(workspace, 'skills');
 
   let prompt = `# Role: ${role}\n\n`;
   prompt += roleContent;
@@ -411,7 +412,46 @@ function buildSystemPrompt(workspace: string, role: string, roleContent: string)
     prompt += '(이 역할에 필수 규칙이 지정되지 않았습니다)\n\n';
   }
 
-  // 2. 핵심 산출물 전체 포함 (우선순위 높은 문서)
+  // 2. 전문 스킬 (Skills)
+  const roleSkills = getSkillsForRole(role);
+
+  if (roleSkills.length > 0) {
+    prompt += '# 전문 스킬 (Specialized Skills)\n\n';
+    prompt += `이 역할에 적용되는 전문 스킬: ${roleSkills.join(', ')}\n\n`;
+    prompt += '**중요:** 아래 스킬의 패턴, 규칙, 예시를 정확히 따라 작업하세요.\n\n';
+
+    if (fs.existsSync(skillsDir)) {
+      roleSkills.forEach(skillName => {
+        const skillPath = path.join(skillsDir, skillName, 'SKILL.md');
+
+        if (fs.existsSync(skillPath)) {
+          try {
+            const content = fs.readFileSync(skillPath, 'utf-8');
+
+            // YAML 프론트매터 제거 (---로 시작하고 끝나는 부분)
+            const withoutFrontmatter = content.replace(/^---\n[\s\S]*?\n---\n/, '');
+
+            prompt += `## 스킬: ${skillName}\n\n`;
+            prompt += withoutFrontmatter;
+            prompt += '\n\n---\n\n';
+          } catch (err) {
+            prompt += `## 스킬: ${skillName} (읽기 실패)\n\n`;
+            console.warn(chalk.yellow(`⚠️  스킬 파일 읽기 실패: ${skillName}`));
+          }
+        } else {
+          prompt += `## 스킬: ${skillName} (파일 없음)\n\n`;
+          console.warn(chalk.yellow(`⚠️  스킬 파일이 없습니다: ${skillPath}`));
+          console.warn(chalk.gray(`   생성 명령: ada skills create ${skillName}`));
+        }
+      });
+    } else {
+      prompt += '(skills 디렉토리가 없습니다)\n\n';
+    }
+
+    prompt += '---\n\n';
+  }
+
+  // 3. 핵심 산출물 전체 포함 (우선순위 높은 문서)
   prompt += '# 핵심 산출물 (Core Artifacts)\n\n';
 
   const priorityArtifacts = [

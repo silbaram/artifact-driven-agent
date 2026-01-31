@@ -1,6 +1,18 @@
 import chalk from 'chalk';
 import inquirer from 'inquirer';
-import { readConfig, writeConfig, getConfigPath } from '../utils/config.js';
+import fs from 'fs-extra';
+import path from 'path';
+import {
+  readConfig,
+  writeConfig,
+  getConfigPath,
+  getSkillsForRole,
+  setSkillsForRole,
+  addSkillsToRole,
+  removeSkillsFromRole,
+  getToolForRole,
+} from '../utils/config.js';
+import { getWorkspaceDir } from '../utils/files.js';
 import type { AdaConfig } from '../types/index.js';
 
 /**
@@ -9,8 +21,9 @@ import type { AdaConfig } from '../types/index.js';
 export async function config(
   action?: string,
   key?: string,
-  value?: string
+  ...values: string[]
 ): Promise<void> {
+  const value = values[0];
   const configPath = getConfigPath();
   const currentConfig = readConfig();
 
@@ -57,8 +70,115 @@ export async function config(
     return;
   }
 
+  // 4. 스킬 설정 (set-skills)
+  if (action === 'set-skills') {
+    if (!key) {
+      console.log(chalk.red('역할을 지정해주세요.'));
+      console.log(chalk.gray('예시: ada config set-skills developer spring-boot kotlin'));
+      process.exit(1);
+    }
+
+    const role = key;
+    const skills = value ? [value, ...values.slice(1)] : [];
+
+    if (skills.length === 0) {
+      console.log(chalk.red('최소 1개 이상의 스킬을 지정해주세요.'));
+      process.exit(1);
+    }
+
+    // 스킬 파일 존재 여부 확인
+    const workspaceDir = getWorkspaceDir();
+    const skillsDir = path.join(workspaceDir, 'skills');
+
+    for (const skill of skills) {
+      const skillPath = path.join(skillsDir, skill, 'SKILL.md');
+      if (!fs.existsSync(skillPath)) {
+        console.log(chalk.yellow(`⚠️  스킬 파일이 없습니다: ${skill}`));
+        console.log(chalk.gray(`   생성: ada skills create ${skill}`));
+      }
+    }
+
+    setSkillsForRole(role, skills);
+
+    console.log(chalk.green(`✓ ${role} 역할의 스킬 설정 완료`));
+    console.log(chalk.gray(`스킬: ${skills.join(', ')}`));
+    return;
+  }
+
+  // 5. 스킬 추가 (add-skills)
+  if (action === 'add-skills') {
+    if (!key) {
+      console.log(chalk.red('역할을 지정해주세요.'));
+      process.exit(1);
+    }
+
+    const role = key;
+    const skills = value ? [value, ...values.slice(1)] : [];
+
+    if (skills.length === 0) {
+      console.log(chalk.red('최소 1개 이상의 스킬을 지정해주세요.'));
+      process.exit(1);
+    }
+
+    addSkillsToRole(role, ...skills);
+
+    const updated = getSkillsForRole(role);
+    console.log(chalk.green(`✓ ${role} 역할에 스킬 추가 완료`));
+    console.log(chalk.gray(`전체 스킬: ${updated.join(', ')}`));
+    return;
+  }
+
+  // 6. 스킬 제거 (remove-skills)
+  if (action === 'remove-skills') {
+    if (!key) {
+      console.log(chalk.red('역할을 지정해주세요.'));
+      process.exit(1);
+    }
+
+    const role = key;
+    const skills = value ? [value, ...values.slice(1)] : [];
+
+    if (skills.length === 0) {
+      console.log(chalk.red('최소 1개 이상의 스킬을 지정해주세요.'));
+      process.exit(1);
+    }
+
+    removeSkillsFromRole(role, ...skills);
+
+    const updated = getSkillsForRole(role);
+    console.log(chalk.green(`✓ ${role} 역할에서 스킬 제거 완료`));
+    console.log(chalk.gray(`남은 스킬: ${updated.length > 0 ? updated.join(', ') : '없음'}`));
+    return;
+  }
+
+  // 7. 스킬 목록 보기 (show-skills)
+  if (action === 'show-skills') {
+    console.log(chalk.blue('━'.repeat(50)));
+    console.log(chalk.bold('📚 역할별 스킬 설정'));
+    console.log(chalk.blue('━'.repeat(50)));
+
+    const roles = Object.keys(currentConfig.roles);
+
+    for (const role of roles) {
+      const skills = getSkillsForRole(role);
+      const tool = getToolForRole(role);
+
+      console.log(`\n${chalk.cyan(role)}`);
+      console.log(`  도구: ${chalk.gray(tool)}`);
+
+      if (skills.length > 0) {
+        console.log(`  스킬: ${chalk.green(skills.join(', '))}`);
+      } else {
+        console.log(`  스킬: ${chalk.gray('없음')}`);
+      }
+    }
+
+    console.log('');
+    return;
+  }
+
   console.error(chalk.red(`❌ 알 수 없는 명령입니다: ${action}`));
-  console.log(chalk.gray('사용 가능: list, get, set'));
+  console.log(chalk.gray('사용 가능: list, get, set, set-skills, add-skills, remove-skills, show-skills'));
 }
 
 /**

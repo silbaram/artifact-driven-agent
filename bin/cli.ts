@@ -14,6 +14,7 @@ import { upgrade } from '../src/commands/upgrade.js';
 import { monitor } from '../src/commands/monitor.js';
 import sprint from '../src/commands/sprint.js';
 import docs from '../src/commands/docs.js';
+import { skills } from '../src/commands/skills.js';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -86,6 +87,12 @@ program
   .option('-g, --generator <type>', '문서 생성기 (mkdocs, jekyll)')
   .action(docs);
 
+// Skills command
+program
+  .command('skills <action> [args...]')
+  .description('스킬 관리 (create, list, info)')
+  .action(skills);
+
 // Monitor command (UI 모드)
 program
   .command('monitor')
@@ -109,7 +116,7 @@ program
 const args = process.argv.slice(2);
 
 // 명령어 목록
-const COMMANDS = ['setup', 'status', 'reset', 'upgrade', 'validate', 'sessions', 'logs', 'run', 'sprint', 'docs', 'config', 'monitor', 'm'];
+const COMMANDS = ['setup', 'status', 'reset', 'upgrade', 'validate', 'sessions', 'logs', 'run', 'sprint', 'docs', 'skills', 'config', 'monitor', 'm'];
 
 if (args.length === 0) {
   // 인자 없으면 대화형 모드

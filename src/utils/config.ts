@@ -73,5 +73,84 @@ export function writeConfig(config: AdaConfig): void {
  */
 export function getToolForRole(role: string): string {
   const config = readConfig();
-  return config.roles[role] || config.defaults.tool || 'claude';
+  const roleConfig = config.roles[role];
+
+  // 객체 형식 (tool + skills)
+  if (typeof roleConfig === 'object' && roleConfig !== null) {
+    return roleConfig.tool;
+  }
+
+  // 문자열 형식
+  if (typeof roleConfig === 'string') {
+    return roleConfig;
+  }
+
+  // 기본값
+  return config.defaults?.tool || 'claude';
+}
+
+/**
+ * 역할에 대한 스킬 목록 반환
+ */
+export function getSkillsForRole(role: string): string[] {
+  const config = readConfig();
+  const roleConfig = config.roles[role];
+
+  // 객체 형식 (tool + skills)
+  if (typeof roleConfig === 'object' && roleConfig !== null && roleConfig.skills) {
+    return roleConfig.skills;
+  }
+
+  // 문자열 형식 또는 스킬 없음
+  return [];
+}
+
+/**
+ * 역할에 스킬 설정 (덮어쓰기)
+ */
+export function setSkillsForRole(role: string, skills: string[]): void {
+  const config = readConfig();
+  const roleConfig = config.roles[role];
+
+  // 기존이 문자열이면 객체로 변환
+  if (typeof roleConfig === 'string') {
+    config.roles[role] = {
+      tool: roleConfig,
+      skills: skills,
+    };
+  }
+  // 기존이 객체면 skills만 업데이트
+  else if (typeof roleConfig === 'object' && roleConfig !== null) {
+    config.roles[role] = {
+      ...roleConfig,
+      skills: skills,
+    };
+  }
+  // 역할이 없으면 새로 생성
+  else {
+    config.roles[role] = {
+      tool: config.defaults?.tool || 'claude',
+      skills: skills,
+    };
+  }
+
+  writeConfig(config);
+}
+
+/**
+ * 역할의 스킬 추가
+ */
+export function addSkillsToRole(role: string, ...skillsToAdd: string[]): void {
+  const existingSkills = getSkillsForRole(role);
+  const newSkills = [...new Set([...existingSkills, ...skillsToAdd])]; // 중복 제거
+  setSkillsForRole(role, newSkills);
+}
+
+/**
+ * 역할의 스킬 제거
+ */
+export function removeSkillsFromRole(role: string, ...skillsToRemove: string[]): void {
+  const existingSkills = getSkillsForRole(role);
+  const newSkills = existingSkills.filter(s => !skillsToRemove.includes(s));
+  setSkillsForRole(role, newSkills);
 }
